@@ -1,5 +1,5 @@
 //! Auto-update decisions that need no network: release versions, SHA256SUMS lines, the assets
-//! Ferry needs from a Gitea release, and the encodings of its update signing key and signature.
+//! Ferry needs from a GitHub (or Gitea) release, and the encodings of its update signing key and signature.
 
 /// `vX.Y.Z` or `X.Y.Z`, three numeric parts. A pre-release suffix (`-rc1`) is no version here:
 /// Ferry only updates to plain releases.
@@ -77,10 +77,16 @@ pub fn https_host(url: &str) -> Option<&str> {
     (!host.is_empty() && !host.contains('@')).then_some(host)
 }
 
-/// Reads a Gitea `releases/latest` answer fetched from `api_url`. Anything unexpected means no
-/// update, and so does an installer or checksum address that isn't https on the API's own host:
-/// both files come from one place, so a plain-http or off-site link would let anyone on the
-/// path, or anyone who can edit the release text, swap them together.
+/// True when release files on `file_host` come from the same place as the API on `api_host`:
+/// the same host, or github.com for api.github.com (GitHub serves release files from there).
+fn same_place(api_host: &str, file_host: &str) -> bool {
+    file_host.eq_ignore_ascii_case(api_host) || (api_host.eq_ignore_ascii_case("api.github.com") && file_host.eq_ignore_ascii_case("github.com"))
+}
+
+/// Reads a GitHub or Gitea `releases/latest` answer fetched from `api_url`. Anything unexpected
+/// means no update, and so does an installer or checksum address that isn't https on the API's
+/// own host (see `same_place`): both files come from one place, so a plain-http or off-site link
+/// would let anyone on the path, or anyone who can edit the release text, swap them together.
 pub fn pick_release(json: &[u8], api_url: &str) -> Option<Release> {
     let host = https_host(api_url)?;
     let v: serde_json::Value = serde_json::from_slice(json).ok()?;
@@ -88,7 +94,7 @@ pub fn pick_release(json: &[u8], api_url: &str) -> Option<Release> {
     parse_version(tag)?;
     let version = tag.strip_prefix('v').unwrap_or(tag).to_string();
     let url = |name: &str| {
-        v.get("assets")?.as_array()?.iter().find(|a| a.get("name").and_then(|n| n.as_str()) == Some(name))?.get("browser_download_url")?.as_str().filter(|u| https_host(u).is_some_and(|h| h.eq_ignore_ascii_case(host))).map(String::from)
+        v.get("assets")?.as_array()?.iter().find(|a| a.get("name").and_then(|n| n.as_str()) == Some(name))?.get("browser_download_url")?.as_str().filter(|u| https_host(u).is_some_and(|h| same_place(host, h))).map(String::from)
     };
     Some(Release { setup_url: url(&format!("Ferry-Setup-{version}.exe"))?, sums_url: url("SHA256SUMS.txt")?, sig_url: url("SHA256SUMS.txt.sig"), version })
 }
@@ -157,6 +163,23 @@ mod tests {
         assert_eq!(pick_release(elsewhere.as_bytes(), API), None, "checksums on another host");
         let sig_elsewhere = RELEASE.replace("https://example.invalid/sig", "https://evil.invalid/sig");
         assert_eq!(pick_release(sig_elsewhere.as_bytes(), API).unwrap().sig_url, None, "signature on another host is not used");
+    }
+
+    #[test]
+    fn github_files_may_come_from_github_com() {
+        const GITHUB: &str = "https://api.github.com/repos/o/ferry/releases/latest";
+        let on = |host: &str| RELEASE.replace("example.invalid", host);
+        let r = pick_release(on("github.com").as_bytes(), GITHUB).unwrap();
+        assert_eq!(r.setup_url, "https://github.com/setup");
+        assert_eq!(r.sig_url.as_deref(), Some("https://github.com/sig"));
+        assert!(pick_release(on("GitHub.com").as_bytes(), GITHUB).is_some());
+        assert!(pick_release(on("api.github.com").as_bytes(), GITHUB).is_some(), "the API's own host");
+        for bad in ["objects.githubusercontent.com", "evil.github.com", "github.com.evil.invalid", "github.com:8443", "gist.github.com"] {
+            assert_eq!(pick_release(on(bad).as_bytes(), GITHUB), None, "{bad}");
+        }
+        assert_eq!(pick_release(on("api.github.com").as_bytes(), "https://github.com/api/latest"), None, "only from api.github.com to github.com");
+        assert_eq!(pick_release(on("github.com").as_bytes(), API), None, "github.com files for another API");
+        assert_eq!(pick_release(on("github.com").as_bytes(), "http://api.github.com/repos/o/ferry/releases/latest"), None);
     }
 
     #[test]

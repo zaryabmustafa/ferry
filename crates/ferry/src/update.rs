@@ -1,4 +1,4 @@
-//! Auto-update: find a newer Gitea release, check its signed checksums, download and verify its
+//! Auto-update: find a newer GitHub release, check its signed checksums, download and verify its
 //! installer, and leave the files that tell the next start how the install went. Runs on worker
 //! threads; the engine decides when.
 use crate::win::http::{self, HttpError};
@@ -11,7 +11,7 @@ use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_R
 /// Where Ferry looks for its newest release. A fork sets `FERRY_RELEASES_URL` at build time.
 pub const RELEASES_URL: &str = match option_env!("FERRY_RELEASES_URL") {
     Some(u) => u,
-    None => "https://gitea.example.invalid/api/v1/repos/owner/ferry/releases/latest",
+    None => "https://api.github.com/repos/zaryabmustafa/ferry/releases/latest",
 };
 /// The public half of the key CI signs `SHA256SUMS.txt` with: the hex of its uncompressed P-256
 /// point (docs/verification.md, "Update signing key", says how to make one). While a key is

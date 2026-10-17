@@ -25,14 +25,14 @@ Nothing else is downloaded, and your files never travel this way.
 | The installer fails its checksum | Deletes the download and doesn't install it. |
 | The install doesn't take | Starts the old version again. |
 
-In each case that version is skipped until a newer one comes out. Ferry also only follows installer and checksum links that use https on the same host as the releases API, and never installs a version older than the one it runs.
+In each case that version is skipped until a newer one comes out. Ferry also only follows installer and checksum links that use https on the same host as the releases API (or on `github.com` for `api.github.com`, where GitHub serves release files), and never installs a version older than the one it runs.
 
 ## Who can ship an update
 
 The signature is ECDSA P-256 over the exact bytes of `SHA256SUMS.txt`, which names the installer and its version. The public key is built into `ferry.exe` (`UPDATE_KEY` in `crates/ferry/src/update.rs`). CI signs with the private key, which lives only in the repository's `UPDATE_SIGNING_KEY` Actions secret and the owner's offline copy.
 
-- **Can't ship an update:** someone who can only upload or replace release files, for example with a stolen API token or write access to Gitea's file storage.
-- **Still can:** someone who can run a workflow that reads that secret (write access to the repository, or control of the Gitea server or its runner). To take that away too, sign by hand instead of in CI: see "Update signing key" in [verification.md](verification.md#update-signing-key).
+- **Can't ship an update:** someone who can only upload or replace release files, for example with a stolen token that can edit releases.
+- **Still can:** someone who can run a workflow that reads that secret (write access to the repository, or control of the owner's GitHub account). To take that away too, sign by hand instead of in CI: see "Update signing key" in [verification.md](verification.md#update-signing-key).
 
 Turn off "Install updates automatically" if this is more trust than you want to give it.
 
@@ -40,4 +40,4 @@ Turn off "Install updates automatically" if this is more trust than you want to 
 
 While the repository is private, the releases API answers "not found" to Ferry, so Ferry sees no updates. That is quiet, and updates start working once the repository is public.
 
-A fork points Ferry at its own releases by building with `FERRY_RELEASES_URL` set to its `.../api/v1/repos/<owner>/<repo>/releases/latest` address (Gitea's API; GitHub's has the same fields), and at its own signing key with `FERRY_UPDATE_KEY` (or by changing `UPDATE_KEY`). A build without a key installs no updates.
+A fork points Ferry at its own releases by building with `FERRY_RELEASES_URL` set to its `https://api.github.com/repos/<owner>/<repo>/releases/latest` address (a Gitea server's `.../api/v1/repos/<owner>/<repo>/releases/latest` has the same fields), and at its own signing key with `FERRY_UPDATE_KEY` (or by changing `UPDATE_KEY`). A build without a key installs no updates.

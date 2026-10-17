@@ -171,7 +171,7 @@ This checks that Ferry mirrors a folder using only the carried destination snaps
 
 This replaces the Ferry installed for your user and restarts it, so run it when no trip matters, or on a spare Windows account or a VM. It needs NSIS to build installers locally (`winget install NSIS.NSIS`; CI builds them on Linux otherwise) and Python for a local web server. Nothing here is committed: reset the version bumps with `git checkout -- crates` at the end.
 
-Both builds point at a local server instead of Gitea, through the build-time variable `FERRY_RELEASES_URL`, and trust a throwaway signing key instead of the real one, through `FERRY_UPDATE_KEY`. Make that key first, in Git Bash, in a folder outside the repository, for example `D:\tmp\ferry-release`:
+Both builds point at a local server instead of GitHub, through the build-time variable `FERRY_RELEASES_URL`, and trust a throwaway signing key instead of the real one, through `FERRY_UPDATE_KEY`. Make that key first, in Git Bash, in a folder outside the repository, for example `D:\tmp\ferry-release`:
 
 ```
 openssl ecparam -name prime256v1 -genkey -noout -out test-update.pem
@@ -238,7 +238,7 @@ openssl ec -in ferry-update.pem -pubout -outform DER | tail -c 65 | od -An -tx1 
 ```
 
 1. The second command prints the public key: 130 hex digits starting `04`. Put it in `crates/ferry/src/update.rs` as `UPDATE_KEY`'s default (`None => "04…",`), run `cargo test -p ferry update` (the `embedded_update_keys_are_p256_points` test checks the paste) and commit.
-2. In Gitea, open the repository's **Settings > Actions > Secrets**, choose **Add Secret**, name it `UPDATE_SIGNING_KEY`, and paste the whole of `ferry-update.pem`, from `-----BEGIN EC PRIVATE KEY-----` to `-----END EC PRIVATE KEY-----`.
+2. On GitHub, open the repository's **Settings > Secrets and variables > Actions**, choose **New repository secret**, name it `UPDATE_SIGNING_KEY`, and paste the whole of `ferry-update.pem`, from `-----BEGIN EC PRIVATE KEY-----` to `-----END EC PRIVATE KEY-----`. Or, with the GitHub CLI, in the folder holding the key: `gh secret set UPDATE_SIGNING_KEY --repo zaryabmustafa/ferry < ferry-update.pem`.
 3. Keep `ferry-update.pem` offline, for example in a password manager or on a USB stick in a drawer, and delete every other copy. It is the only way to rotate the key without every installed copy needing a manual reinstall, and anyone holding it can ship code to every installed Ferry. Never commit it.
 4. Tag a release. The release job's "Sign the checksums" step should end with `Verified OK`, and the release should list `SHA256SUMS.txt.sig`. To check one by hand: `openssl ec -in ferry-update.pem -pubout -out ferry-update.pub`, then `openssl dgst -sha256 -verify ferry-update.pub -signature SHA256SUMS.txt.sig SHA256SUMS.txt`.
 
@@ -254,4 +254,4 @@ If the old key leaked, do both steps right away: whoever holds it can ship updat
 
 ### Sign by hand instead of in CI
 
-The secret is readable by any workflow in the repository, so someone with write access to the repository, or control of the Gitea server or its runner, can still sign. To remove that, don't add the secret, and remove the "Sign the checksums" step from the release job. For each release: download `SHA256SUMS.txt` from the release, run `openssl dgst -sha256 -sign ferry-update.pem -out SHA256SUMS.txt.sig SHA256SUMS.txt` on a machine you trust, and attach `SHA256SUMS.txt.sig` to the release. Until it is attached, copies refuse that release (and skip that version), so attach it before the release is published, or publish it as a draft first.
+The secret is readable by any workflow in the repository, so someone with write access to the repository, or control of the owner's GitHub account, can still sign. To remove that, don't add the secret, and remove the "Sign the checksums" step from the release job. For each release: download `SHA256SUMS.txt` from the release, run `openssl dgst -sha256 -sign ferry-update.pem -out SHA256SUMS.txt.sig SHA256SUMS.txt` on a machine you trust, and attach `SHA256SUMS.txt.sig` to the release. Until it is attached, copies refuse that release (and skip that version), so attach it before the release is published, or publish it as a draft first.

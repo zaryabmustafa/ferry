@@ -1,11 +1,12 @@
 name: Build
 
-# lint ──┐
-#        ├─> release (tags vX.Y.Z only): Gitea release with installer, zip, signed checksums
-# build ─> package (installer + portable zip, every run)
+# lint ─────────────┐
+# test (Windows) ───┼─> release (tags vX.Y.Z only): GitHub release with installer, zip, signed checksums
+# build ─> package ─┘   (package: installer + portable zip, every run)
 #
-# There is no Windows runner, so both programs are cross-compiled on Linux with MinGW
-# (x86_64-pc-windows-gnu). The Rust toolchain is pinned in rust-toolchain.toml; it and the Cargo
+# The shipped program is cross-compiled on Linux with MinGW (x86_64-pc-windows-gnu); the tests
+# run natively on Windows (MSVC), since they need Credential Manager, named pipes, NTFS share
+# modes and ACLs. The Rust toolchain is pinned in rust-toolchain.toml; it and the Cargo
 # registry/target directories are cached per job, so warm runs only rebuild what changed.
 on:
   push:
@@ -27,7 +28,7 @@ env:
   TARGET: x86_64-pc-windows-gnu
   CARGO_TERM_COLOR: never
   CARGO_INCREMENTAL: '0'
-  # Flaky TLS to Rust's CDN on this runner: fail fast and retry (see .gitea/scripts/rust.sh).
+  # Fail fast and retry on flaky downloads (see .github/scripts/rust.sh).
   CARGO_NET_RETRY: '20'
   CARGO_HTTP_TIMEOUT: '20'
   RUSTUP_USE_CURL: '1'
@@ -44,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Prepare the runner
-        run: bash .gitea/scripts/prepare.sh $MINGW_PACKAGES
+        run: bash .github/scripts/prepare.sh $MINGW_PACKAGES
 
       - name: Restore the Rust toolchain
         uses: actions/cache@v4
@@ -64,17 +65,10 @@ jobs:
           restore-keys: cargo-lint-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Install Rust and fetch crates
-        run: bash .gitea/scripts/rust.sh
+        run: bash .github/scripts/rust.sh
 
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets --target "$TARGET" -- -D warnings
-
-      - name: Build the tests for the shipped target
-        # The tests need Windows (Credential Manager, named pipes, NTFS share modes and ACLs), and
-        # this Linux runner can only build them. They link here against the same MinGW toolchain as
-        # the release, so a test that no longer compiles fails the build. Run them on Windows
-        # (`cargo test --workspace`, or a Windows act_runner) before tagging a release.
-        run: cargo test --locked --workspace --target "$TARGET" --no-run
 
       - name: Keep the engine lean
         run: |
@@ -88,6 +82,31 @@ jobs:
             echo "::error::ferry.exe must not depend on an async runtime."
             exit 1
           fi
+
+  test:
+    name: Test (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-test-windows-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: cargo-test-windows-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Install Rust
+        # rustup comes with the runner and reads rust-toolchain.toml.
+        run: rustup toolchain install && rustc --version
+
+      - name: Test
+        run: cargo test --locked --workspace
 
   build:
     name: Build
@@ -119,7 +138,7 @@ jobs:
           echo "Building Ferry $version (release: $release)"
 
       - name: Prepare the runner
-        run: bash .gitea/scripts/prepare.sh $MINGW_PACKAGES icoutils
+        run: bash .github/scripts/prepare.sh $MINGW_PACKAGES icoutils
 
       - name: Restore the Rust toolchain
         uses: actions/cache@v4
@@ -139,7 +158,7 @@ jobs:
           restore-keys: cargo-build-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Install Rust and fetch crates
-        run: bash .gitea/scripts/rust.sh
+        run: bash .github/scripts/rust.sh
 
       - name: Build
         run: cargo build --locked --release --workspace --target "$TARGET"
@@ -163,7 +182,7 @@ jobs:
           mkdir -p bin && cp "$bin/ferry.exe" bin/
 
       - name: Keep the programs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: programs
           path: bin/
@@ -180,10 +199,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Prepare the runner
-        run: bash .gitea/scripts/prepare.sh nsis zip
+        run: bash .github/scripts/prepare.sh nsis zip
 
       - name: Get the programs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: programs
           path: bin
@@ -199,7 +218,7 @@ jobs:
           ls -l dist && cat dist/SHA256SUMS.txt
 
       - name: Keep the packages
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ferry-${{ env.VERSION }}
           path: dist/
@@ -207,10 +226,12 @@ jobs:
 
   release:
     name: Release
-    needs: [lint, build, package]
+    needs: [lint, test, build, package]
     if: needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     env:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
@@ -220,10 +241,10 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare the runner
-        run: bash .gitea/scripts/prepare.sh curl jq openssl
+        run: bash .github/scripts/prepare.sh openssl
 
       - name: Get the packages
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ferry-${{ env.VERSION }}
           path: dist
@@ -252,8 +273,8 @@ jobs:
 
       - name: Publish the release
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           URL: ${{ github.server_url }}/${{ github.repository }}
           TAG: ${{ github.ref_name }}
-        run: bash .gitea/scripts/release.sh dist
+        run: bash .github/scripts/release.sh dist

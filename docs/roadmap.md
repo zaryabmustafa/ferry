@@ -4,7 +4,7 @@ What's planned, roughly in order. Nothing here has a date.
 
 ## Next
 
-- **Move to GitHub.** Publish the repository on GitHub with a clean history, port CI from `.gitea/` to `.github/`, and point updates at GitHub releases. GitHub serves release files from `github.com` while its API is on `api.github.com`, so the update check's same-host rule has to allow that pair first, or installed copies will refuse every update.
+- **Finish the move to GitHub.** The code, CI and update check are on GitHub. Left: copies installed from Gitea still check Gitea, so the last Gitea release has to be a build that checks GitHub (cherry-pick the update-check change onto the Gitea repository and tag it there); and while the GitHub repository is private its releases API answers "not found", so no copy updates until it is public.
 - **Check the server's identity.** Ferry recognises a place by its router and trusts the server that answers there (see [What Ferry trusts](how-it-works.md#what-ferry-trusts)). Pin each server's identity when it is first learned, and refuse a different one. Audit finding S1.
 - **Sign the program.** Authenticode-sign `ferry.exe` and the installer, so Windows SmartScreen stops warning and a binary can be tied to its author. Audit finding S4.
 
@@ -20,5 +20,4 @@ What's planned, roughly in order. Nothing here has a date.
   - leftover `.ferry-part` files at the destination are never cleaned up (D9);
   - the cargo list is rewritten on every file, slow with 100,000 small files (D10);
   - a credential-conflict SMB session counts as signed in (S5).
-- **Run the tests on Windows in CI.** CI builds the tests on Linux but can't run them; they run on the owner's laptop before each release.
 - **Re-measure the footprint** on the current single-program build ([verification.md](verification.md)).

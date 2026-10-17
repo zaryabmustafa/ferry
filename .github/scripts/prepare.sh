@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prepare an ubuntu-latest job container: prefer IPv4 (this runner times out reaching Rust's CDN
-# over IPv6) and install the given apt packages, retrying transient mirror failures.
+# Prepare an ubuntu-latest runner: prefer IPv4 (some runners time out reaching Rust's CDN over
+# IPv6) and install the given apt packages, retrying transient mirror failures.
 # Usage: prepare.sh <apt package>...
 set -euo pipefail
 

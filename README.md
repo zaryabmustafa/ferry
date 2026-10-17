@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://gitea.example.invalid/owner/ferry/actions?workflow=build.yml"><img src="https://gitea.example.invalid/owner/ferry/actions/workflows/build.yml/badge.svg?branch=main" alt="Build status"></a>
-  <a href="https://gitea.example.invalid/owner/ferry/releases/latest"><img src="https://img.shields.io/badge/download-latest%20release-c46d00" alt="Download the latest release"></a>
+  <a href="https://github.com/zaryabmustafa/ferry/actions/workflows/build.yml"><img src="https://github.com/zaryabmustafa/ferry/actions/workflows/build.yml/badge.svg?branch=main" alt="Build status"></a>
+  <a href="https://github.com/zaryabmustafa/ferry/releases/latest"><img src="https://img.shields.io/badge/download-latest%20release-c46d00" alt="Download the latest release"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-16191c" alt="Windows 10 and 11, 64-bit">
   <img src="https://img.shields.io/badge/built%20with-Rust%20%2B%20Slint-16191c" alt="Built with Rust and Slint">
 </p>
@@ -58,7 +58,7 @@ You do nothing during this. The tray icon and its flyout show where you are, wha
 
 ### Install
 
-Download from the [latest release](https://gitea.example.invalid/owner/ferry/releases/latest):
+Download from the [latest release](https://github.com/zaryabmustafa/ferry/releases/latest):
 
 | File | What it is |
 |---|---|

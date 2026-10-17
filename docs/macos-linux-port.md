@@ -179,7 +179,7 @@ Release assets keep one `SHA256SUMS.txt` and its signature, covering every OS's 
 
 ### macOS
 
-- **Build:** a universal binary (`lipo` of `aarch64-apple-darwin` and `x86_64-apple-darwin`). Apple's SDK licence allows it only on Apple hardware, so this needs a Mac: a self-hosted Gitea act_runner on a Mac mini. Cross-building from the Linux runner with osxcross is technically possible but not licence-clean.
+- **Build:** a universal binary (`lipo` of `aarch64-apple-darwin` and `x86_64-apple-darwin`). Apple's SDK licence allows it only on Apple hardware, so this needs a Mac: GitHub's hosted macOS runners (`macos-latest`). Cross-building from the Linux runner with osxcross is technically possible but not licence-clean.
 - **Bundle:** `Ferry.app` with `Info.plist` (`CFBundleIdentifier`, `LSUIElement = true`, `NSLocalNetworkUsageDescription`), the `.icns` from `build.py`, the binary in `Contents/MacOS/ferry`.
 - **Signing and notarization:** an Apple Developer ID (paid membership) is required; without it Gatekeeper blocks the app and the Keychain asks again after every update because the code identity changes. `rcodesign` (apple-codesign) signs, notarizes with an App Store Connect API key and staples from any OS, so the release step can stay on the Linux runner after the Mac builds.
 - **Download:** a notarized `.zip` of the stapled `.app` is enough for Gatekeeper. A `.dmg` (drag to Applications) is nicer for first install; it needs `hdiutil` on the Mac runner. Start with the zip.
@@ -189,7 +189,7 @@ Release assets keep one `SHA256SUMS.txt` and its signature, covering every OS's 
 
 - **Build:** natively on the existing Ubuntu runner (`x86_64-unknown-linux-gnu`; `aarch64` later). Build against an old glibc (the oldest supported Ubuntu LTS image) so the binary runs on newer distros.
 - **AppImage:** for any distro, and the one format that self-updates: download the new AppImage, verify, `chmod +x`, rename over `$APPIMAGE` (same folder, atomic), exec it. Bundling libsmbclient is heavy (it drags in many Samba libraries and is glibc-sensitive); prefer loading the system's `libsmbclient.so.0` at run time and telling the user to install it when it's missing.
-- **.deb:** built with `cargo-deb`, `Depends: libsmbclient0 | libsmbclient, libdbus-1-3`. Installs a `.desktop` file and icons. Updates come through apt: Gitea's package registry can host a Debian repository, so `apt upgrade` updates Ferry and Ferry's own updater stays off for package installs (`installed()` returns false under `/usr`). Note that apt trusts the repository's signing key, not Ferry's update key; docs/updates.md says so.
+- **.deb:** built with `cargo-deb`, `Depends: libsmbclient0 | libsmbclient, libdbus-1-3`. Installs a `.desktop` file and icons. Updates come through apt: a Debian repository (for example on GitHub Pages) can host it, so `apt upgrade` updates Ferry and Ferry's own updater stays off for package installs (`installed()` returns false under `/usr`). Note that apt trusts the repository's signing key, not Ferry's update key; docs/updates.md says so.
 - **Later:** `.rpm` (cargo-generate-rpm) if anyone asks; Flatpak is a poor fit (sandboxed network mounts and tray).
 
 ## Safety guarantees in docs/safety.md that change on Unix

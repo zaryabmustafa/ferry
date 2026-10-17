@@ -2,7 +2,7 @@
 # Install rustup if needed and the toolchain pinned in rust-toolchain.toml (with its components
 # and the Windows GNU target). With ~/.rustup restored from cache this downloads nothing.
 #
-# This runner's TLS handshakes to Rust's CDN (Fastly) intermittently stall: the same file times
+# TLS handshakes to Rust's CDN (Fastly) can stall intermittently: the same file times
 # out once and downloads in seconds on the next try. So every download here uses a short
 # connect timeout and many retries; the sh.rustup.rs bootstrap is skipped because its own curl
 # call has no timeout and can hang for the job's whole time limit.

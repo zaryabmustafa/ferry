@@ -32,4 +32,4 @@ Look and wording rules for the UI are in [PRODUCT.md](../PRODUCT.md) and [DESIGN
 
 ## Releases
 
-Releases are built by CI (`.gitea/workflows/build.yml`). Every push to `main` builds the program and the installer. Pushing a tag `vX.Y.Z` that matches the crate version publishes a release, with `SHA256SUMS.txt` signed as described in [updates.md](updates.md#who-can-ship-an-update).
+Releases are built by CI (`.github/workflows/build.yml`). Every push to `main` and every pull request runs the tests on Windows and builds the program and the installer. Pushing a tag `vX.Y.Z` that matches the crate version publishes a release, with `SHA256SUMS.txt` signed as described in [updates.md](updates.md#who-can-ship-an-update).

@@ -4,7 +4,7 @@ What's planned, roughly in order. Nothing here has a date.
 
 ## Next
 
-- **Finish the move to GitHub.** The code, CI and update check are on GitHub. Left: copies installed from Gitea still check Gitea, so the last Gitea release has to be a build that checks GitHub (cherry-pick the update-check change onto the Gitea repository and tag it there); and while the GitHub repository is private its releases API answers "not found", so no copy updates until it is public.
+- **Finish the move to GitHub.** The code, CI and update check are on GitHub. Left: GitHub's releases start again at 0.1.0, and a copy never installs a lower version, so copies installed from the old Gitea releases (0.2.x) won't update to them; reinstall those once by hand from the first GitHub release. And while the GitHub repository is private its releases API answers "not found", so no copy updates until it is public.
 - **Check the server's identity.** Ferry recognises a place by its router and trusts the server that answers there (see [What Ferry trusts](how-it-works.md#what-ferry-trusts)). Pin each server's identity when it is first learned, and refuse a different one. Audit finding S1.
 - **Sign the program.** Authenticode-sign `ferry.exe` and the installer, so Windows SmartScreen stops warning and a binary can be tied to its author. Audit finding S4.
 

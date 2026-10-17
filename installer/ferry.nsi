@@ -132,7 +132,7 @@ Function FerryFinishShow
 FunctionEnd
 
 ; Ferry can't be replaced or removed while it runs. ferry-ui.exe is the window program of
-; versions before 0.2.1.
+; early builds.
 !macro StopFerry
   nsExec::Exec 'taskkill /F /IM ferry-ui.exe'
   Pop $0

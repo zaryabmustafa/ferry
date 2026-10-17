@@ -116,4 +116,4 @@ Measured on 2026-10-16 on a Windows 11 development laptop, on the v1 code (relea
 | Engine working set, idle | 2.5 to 3.1 MB over 13.5 minutes |
 | Engine CPU, idle | about 0.04% of one core |
 
-In v1 the windows were a separate `ferry-ui.exe` (12.3 MiB). Since 0.2.1 they are built into `ferry.exe`, which is now about 13 MiB on disk. The window copy only runs while a window is open (about 4 MiB private bytes for the flyout), and the engine copy never starts the renderer, so the idle figures above shouldn't change; they haven't been re-measured on the single program yet.
+In v1 the windows were a separate `ferry-ui.exe` (12.3 MiB). They are now built into `ferry.exe`, which is now about 13 MiB on disk. The window copy only runs while a window is open (about 4 MiB private bytes for the flyout), and the engine copy never starts the renderer, so the idle figures above shouldn't change; they haven't been re-measured on the single program yet.

@@ -275,22 +275,16 @@ mod tests {
     const KB: usize = 1024;
     const MIB: usize = 1 << 20;
 
-    /// Deny listing a directory (Windows ACL); restored on drop so the tempdir can be removed.
-    struct Locked(PathBuf);
+    /// Deny listing a directory by holding it open without sharing until dropped. (A deny ACL
+    /// doesn't stop an elevated admin, such as the CI runner.)
+    struct Locked {
+        _dir: std::fs::File,
+    }
     impl Locked {
         fn new(p: PathBuf) -> Locked {
-            let st = std::process::Command::new("icacls")
-                .arg(&p)
-                .args(["/deny", "*S-1-1-0:(RD)"])
-                .output()
-                .unwrap();
-            assert!(st.status.success(), "icacls deny failed");
-            Locked(p)
-        }
-    }
-    impl Drop for Locked {
-        fn drop(&mut self) {
-            let _ = std::process::Command::new("icacls").arg(&self.0).args(["/remove:d", "*S-1-1-0"]).output();
+            use std::os::windows::fs::OpenOptionsExt;
+            // No sharing; FILE_FLAG_BACKUP_SEMANTICS lets a directory be opened.
+            Locked { _dir: std::fs::OpenOptions::new().read(true).share_mode(0).custom_flags(0x0200_0000).open(p).unwrap() }
         }
     }
 

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360">
+  <title>Ferry</title>
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#323b47"/>
+      <stop offset="0.55" stop-color="#1f252d"/>
+      <stop offset="1" stop-color="#14181e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="360" rx="28" fill="url(#plate)"/>
+  <!-- water, faint, across the bottom -->
+  <g fill="none" stroke="#eef0f3" stroke-linecap="round" opacity="0.07" stroke-width="6">
+    <path d="M-20 300q40-22 80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0"/>
+    <path d="M20 332q40-22 80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0t80 0"/>
+  </g>
+  <!-- mark: the Hull, drawn on the 24 grid, scaled 7x -->
+  <g transform="translate(104 72) scale(7)">
+    <rect x="6" y="5" width="7" height="3.4" rx="1" fill="#e69825"/>
+    <rect x="6" y="9.6" width="12" height="3.4" rx="1" fill="#eef0f3"/>
+    <path d="M2.8 14.6h18.4l-2.6 4.6H5.4z" fill="#eef0f3" stroke="#eef0f3" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M3 21.6q2.25-1.2 4.5 0t4.5 0t4.5 0t4.5 0" fill="none" stroke="#eef0f3" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  <g font-family="'Segoe UI Variable Display','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif">
+    <text x="320" y="182" font-size="112" font-weight="600" letter-spacing="-2.2" fill="#eef0f3">Ferry</text>
+    <text x="324" y="236" font-size="30" fill="#c3c8cd">Mirror one server to another by carrying the files on your laptop.</text>
+  </g>
+</svg>

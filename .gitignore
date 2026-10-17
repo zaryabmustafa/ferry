@@ -1,0 +1,37 @@
+# Build output
+target/
+/bin/
+/dist/
+*.pdb
+
+# Release files built locally (CI makes the real ones)
+Ferry-Setup-*.exe
+Ferry-*-portable-*.zip
+SHA256SUMS.txt
+SHA256SUMS.txt.sig
+
+# Keys and secrets: the update signing key lives offline and in a CI secret, never here
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+
+# Ferry's own data, if a test run writes it into the tree
+*.ferry-part
+*.log
+
+# Local tool and agent state
+.claude/
+.impeccable/
+.superpowers/
+.playwright-mcp/
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+Thumbs.db
+desktop.ini
+.DS_Store

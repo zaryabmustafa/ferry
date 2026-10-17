@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96">
+  <title>Ferry</title>
+  <style>
+    .hull { fill: #16191c; stroke: #16191c; } .water { stroke: #16191c; } .cargo { fill: #e69825; }
+    @media (prefers-color-scheme: dark) { .hull { fill: #eef0f3; stroke: #eef0f3; } .water { stroke: #eef0f3; } }
+  </style>
+  <rect class="cargo" x="6" y="5" width="7" height="3.4" rx="1"/>
+  <rect class="hull" x="6" y="9.6" width="12" height="3.4" rx="1" stroke="none"/>
+  <path class="hull" d="M2.8 14.6h18.4l-2.6 4.6H5.4z" stroke-width="1" stroke-linejoin="round"/>
+  <path class="water" d="M3 21.6q2.25-1.2 4.5 0t4.5 0t4.5 0t4.5 0" fill="none" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+</svg>

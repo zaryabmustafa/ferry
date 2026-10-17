@@ -1,0 +1,970 @@
+// The setup window's pages, structured like mockups/hub-structure.html: a header with the title and
+// the page's actions, tabs where a page has views, upper-case section labels, and one card per item.
+import { Theme, Focus } from "../theme.slint";
+import { Icon, Btn } from "../flyout.slint";
+import { ScrollView } from "std-widgets.slint";
+import { S, Note, NetRow } from "state.slint";
+import {
+    Ring, PageTitle, Caption, Field, Toggle, SettingRow, Card, NoteView, SectionLabel, Chip, ItemCard, Manage, MenuItem, Tab,
+    TabItem, CardRow
+} from "controls.slint";
+
+export struct PageAction { text: string, icon: string, primary: bool }
+
+// The location pill beside the Status title.
+component Pill inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    height: 32px;
+    border-radius: 16px;
+    background: Theme.accent-soft;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 14px;
+        spacing: 8px;
+        Icon { text: root.icon; color: Theme.ink; }
+        Text { text: root.text; color: Theme.ink; font-weight: 600; vertical-alignment: center; wrap: no-wrap; overflow: elide; accessible-role: none; }
+    }
+}
+
+// A page: header (back, title, pill, actions), optional tabs, then the scrolling content.
+export component Page inherits VerticalLayout {
+    in property <string> title;
+    in property <bool> back;
+    in property <string> pill-text;
+    in property <string> pill-icon;
+    in property <[PageAction]> actions;
+    in property <[TabItem]> tabs;
+    in property <bool> tabs-visible: true;
+    in-out property <int> tab;
+    callback back-clicked();
+    callback action(int);
+
+    HorizontalLayout {
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-top: 20px;
+        spacing: 8px;
+        if root.back: VerticalLayout {
+            alignment: center;
+            Btn { ghost: true; width: 32px; icon: "\u{E72B}"; label: "Back"; clicked => { root.back-clicked(); } }
+        }
+        PageTitle { text: root.title; horizontal-stretch: 1; min-width: 0px; overflow: elide; vertical-alignment: center; }
+        if root.pill-text != "": VerticalLayout { alignment: center; Pill { text: root.pill-text; icon: root.pill-icon; } }
+        for a[i] in root.actions: VerticalLayout {
+            alignment: center;
+            Btn { text: a.text; icon: a.icon; primary: a.primary; clicked => { root.action(i); } }
+        }
+    }
+    if root.tabs-visible && root.tabs.length > 0: VerticalLayout {
+        vertical-stretch: 0;
+        padding-top: 12px;
+        HorizontalLayout {
+            padding-left: 24px;
+            padding-right: 24px;
+            spacing: 4px;
+            alignment: start;
+            accessible-role: tab-list;
+            accessible-label: root.title;
+            for t[i] in root.tabs: Tab { item: t; current: root.tab == i; clicked => { root.tab = i; } }
+        }
+        Rectangle { height: 1px; background: Theme.stroke; }
+    }
+    ScrollView {
+        vertical-stretch: 1;
+        content-width: self.visible-width;
+        content-height: body.preferred-height;
+        body := VerticalLayout {
+            width: parent.visible-width;
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-top: root.tabs-visible && root.tabs.length > 0 ? 4px : 12px;
+            padding-bottom: 24px;
+            spacing: 8px;
+            // Spare height stays at the bottom instead of stretching cards.
+            alignment: start;
+            if S.load-note.text != "": NoteView { note: S.load-note; }
+            @children
+        }
+    }
+}
+
+// "1", "2"... beside a folder: its priority.
+component Prio inherits Rectangle {
+    in property <int> n;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background: Theme.subtle;
+    Text { text: root.n; font-size: 12px; font-weight: 600; color: Theme.muted; horizontal-alignment: center; vertical-alignment: center; }
+}
+
+component Lead inherits Text {
+    color: Theme.muted;
+    wrap: word-wrap;
+}
+
+// ---------- Status ----------
+
+export component StatusPage inherits Page {
+    title: "Status";
+    pill-text: S.running ? S.place : "";
+    pill-icon: S.place-icon;
+    actions: S.running
+        ? [{ text: S.paused ? "Resume" : "Pause", icon: S.paused ? "\u{E768}" : "\u{E769}", primary: false }]
+        : [{ text: "Start Ferry", icon: "", primary: true }];
+    action(i) => { if S.running { S.toggle-pause(); } else { S.start-engine(); } }
+
+    ItemCard {
+        HorizontalLayout {
+            padding: 16px;
+            padding-top: 18px;
+            padding-bottom: 18px;
+            spacing: 16px;
+            if !S.running: Icon { y: 4px; width: 20px; height: 20px; text: S.place-icon; font-size: 20px; color: Theme.warn; }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 2px;
+                Text {
+                    text: S.running && S.status != "" ? S.status : S.place;
+                    font-family: Theme.font-display;
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: Theme.ink;
+                    wrap: word-wrap;
+                    accessible-role: text;
+                    accessible-label: self.text;
+                }
+                if !S.running && S.status != "": Text { text: S.status; color: Theme.ink; wrap: word-wrap; }
+                if S.running && S.detail != "": Text { text: S.detail; color: Theme.muted; wrap: word-wrap; }
+                for a in S.attention: Text { text: a; color: Theme.warn; wrap: word-wrap; }
+            }
+        }
+    }
+
+    if S.show-meter: SectionLabel { text: "LAPTOP SPACE"; }
+    if S.show-meter: ItemCard {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 10px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: S.carried;
+                    font-family: Theme.font-display;
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: Theme.ink;
+                    vertical-alignment: bottom;
+                }
+                Text { text: S.cap; color: Theme.muted; vertical-alignment: bottom; horizontal-stretch: 1; }
+                Caption { text: S.trips; vertical-alignment: bottom; wrap: no-wrap; }
+            }
+            Rectangle {
+                height: 8px;
+                border-radius: 4px;
+                background: Theme.subtle;
+                border-width: Theme.hc ? 1px : 0;
+                border-color: Theme.stroke;
+                clip: true;
+                accessible-role: progress-indicator;
+                accessible-label: "Laptop space used";
+                accessible-value: round(S.meter-value);
+                accessible-value-minimum: 0;
+                accessible-value-maximum: 100;
+                for s in S.segments: Rectangle {
+                    x: parent.width * s.start;
+                    width: parent.width * s.width;
+                    height: parent.height;
+                    background: s.tone == 0 ? Theme.accent : s.tone == 1 ? Theme.seg-2 : Theme.seg-3;
+                    Rectangle { x: parent.width - 1px; width: 1px; background: Theme.layer; }
+                }
+            }
+            HorizontalLayout {
+                spacing: 18px;
+                alignment: start;
+                for l in S.legend: HorizontalLayout {
+                    spacing: 6px;
+                    Rectangle {
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 3px;
+                        border-width: l.tone == 3 || Theme.hc ? 1px : 0;
+                        border-color: Theme.stroke;
+                        background: l.tone == 0 ? Theme.accent : l.tone == 1 ? Theme.seg-2 : l.tone == 2 ? Theme.seg-3 : Theme.subtle;
+                    }
+                    Caption { text: l.name + " " + l.size; wrap: no-wrap; }
+                }
+            }
+        }
+    }
+
+    if S.rows.length > 0: SectionLabel {
+        text: "FOLDERS, IN PRIORITY ORDER";
+        Btn { ghost: true; text: "Manage folders"; clicked => { S.go(1); } }
+    }
+    for r[i] in S.rows: ItemCard {
+        accessible-role: list-item;
+        accessible-label: r.label;
+        HorizontalLayout {
+            padding-top: 14px;
+            padding-bottom: 14px;
+            padding-left: 16px;
+            padding-right: 16px;
+            spacing: 14px;
+            VerticalLayout { alignment: center; Prio { n: i + 1; } }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                min-width: 0px;
+                alignment: center;
+                spacing: 6px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Text { text: r.name; color: Theme.ink; font-weight: 600; overflow: elide; vertical-alignment: center; }
+                    if (r.kind == 0 || r.kind == 3) && r.right != "": Chip { tone: 3; text: r.right + " on the laptop"; }
+                    if r.kind == 3: Chip { tone: 2; icon: "\u{E7BA}"; text: r.detail; }
+                    if r.kind == 0 && r.detail != "": Chip { text: r.detail; }
+                }
+                if r.paths != "": Caption { text: r.paths; overflow: elide; wrap: no-wrap; }
+            }
+            VerticalLayout {
+                horizontal-stretch: 0;
+                min-width: 150px;
+                alignment: center;
+                spacing: 6px;
+                if r.kind == 2: HorizontalLayout {
+                    alignment: end;
+                    spacing: 6px;
+                    Icon { text: "\u{E73E}"; color: Theme.ok; }
+                    Text { text: "Up to date"; color: Theme.ok; }
+                }
+                if r.kind == 1: Text { text: r.right; color: Theme.ink; horizontal-alignment: right; }
+                if r.kind == 1: HorizontalLayout {
+                    alignment: end;
+                    Rectangle {
+                        width: 150px;
+                        height: 4px;
+                        border-radius: 2px;
+                        background: Theme.subtle;
+                        clip: true;
+                        Rectangle { x: 0; width: parent.width * r.percent; height: parent.height; background: Theme.accent; }
+                    }
+                }
+            }
+        }
+    }
+
+    if S.running && S.pairs.length == 0: ItemCard {
+        VerticalLayout {
+            padding: 16px;
+            spacing: 12px;
+            Text { text: "No folders yet"; color: Theme.ink; font-weight: 600; }
+            Lead {
+                text: "Add the folders on " + S.source-place + " you want at " + S.destination-place + ". Ferry carries them on the laptop, in the order you list them.";
+            }
+            HorizontalLayout {
+                alignment: start;
+                Btn { primary: true; icon: "\u{E710}"; text: "Add folder"; clicked => { S.go(1); S.add-pair(); } }
+            }
+        }
+    }
+}
+
+// ---------- Folders ----------
+
+// One field inside a card, WinUI style: title, help under it, then the control. Rows after the first
+// are divided by a line rather than boxed on their own. Stacking keeps every width readable.
+component FormRow inherits Rectangle {
+    in property <string> title;
+    in property <string> body;
+    in property <bool> first;
+    if !root.first: Rectangle { y: 0; height: 1px; background: Theme.stroke; }
+    VerticalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 14px;
+        spacing: 2px;
+        Text { text: root.title; color: Theme.ink; wrap: word-wrap; }
+        if root.body != "": Caption { text: root.body; }
+        VerticalLayout {
+            padding-top: 8px;
+            @children
+        }
+    }
+}
+
+export component FolderForm inherits VerticalLayout {
+    init => { source.focus(); }
+
+    spacing: 8px;
+    SectionLabel { text: "PATHS"; }
+    Card {
+        VerticalLayout {
+            FormRow {
+                first: true;
+                title: S.source-place + " folder";
+                body: "The folder on " + S.source-place + ", starting with the share name: repositories, or backups/vm.";
+                source := Field {
+                    name: S.source-place + " folder";
+                    hint: "The folder on " + S.source-place + ", starting with the share name.";
+                    show-hint: false;
+                    max-width: 420px;
+                    placeholder: "For example, repositories";
+                    text <=> S.f-source;
+                    accepted => { S.save-pair(); }
+                }
+            }
+            FormRow {
+                title: S.destination-place + " folder";
+                body: "Where it goes on " + S.destination-place + ". Leave empty to use the same path.";
+                Field {
+                    name: S.destination-place + " folder";
+                    hint: "Leave empty to use the same path.";
+                    show-hint: false;
+                    max-width: 420px;
+                    placeholder: S.f-source != "" ? S.f-source : "Same as the folder on " + S.source-place;
+                    text <=> S.f-destination;
+                    accepted => { S.save-pair(); }
+                }
+            }
+        }
+    }
+    SectionLabel { text: "SAFETY"; }
+    Card {
+        CardRow {
+            title: "Allow this folder to be empty";
+            body: "If the folder on " + S.source-place + " looks empty, Ferry deletes nothing at " + S.destination-place + ", in case the share is missing. Turn this on only for a folder that can really be empty.";
+            Toggle {
+                label: "Allow this folder to be empty";
+                checked: S.f-allow-empty;
+                toggled => { S.f-allow-empty = !S.f-allow-empty; }
+            }
+        }
+    }
+    Caption {
+        text: "Cargo name: " + (S.adding ? S.preview-id(S.f-source) : S.f-id) + ". Ferry keeps this folder's carried files under it on the laptop.";
+    }
+    if !S.adding: Caption {
+        text: "Changing a path discards the files Ferry carried for this folder that aren't at " + S.destination-place + " yet. The next trip at " + S.source-place + " carries them again.";
+    }
+    if S.f-note.text != "": NoteView { note: S.f-note; }
+}
+
+export component FoldersPage inherits Page {
+    title: S.editing ? (S.adding ? "Add folder" : "Edit " + S.f-id) : "Folders";
+    back: S.editing;
+    back-clicked => { S.cancel-pair(); }
+    actions: S.editing
+        ? [{ text: "Cancel", icon: "", primary: false }, { text: S.adding ? "Add folder" : "Save folder", icon: "", primary: true }]
+        : [{ text: "Add folder", icon: "\u{E710}", primary: true }];
+    action(i) => {
+        if !S.editing { S.add-pair(); } else if i == 0 { S.cancel-pair(); } else { S.save-pair(); }
+    }
+    tabs-visible: !S.editing;
+    tabs: [
+        { text: "All", role: S.pairs.length, badge: "", problem: false },
+        { text: "Carrying", role: S.pairs-on, badge: "", problem: false },
+        { text: "Off", role: S.pairs.length - S.pairs-on, badge: "", problem: false },
+    ];
+    tab <=> S.folder-filter;
+
+    if !S.editing: VerticalLayout {
+        spacing: 8px;
+        Lead {
+            text: "Ferry carries these folders from " + S.source-place + " to " + S.destination-place + ", top first. When the laptop fills up, folders higher up go first.";
+        }
+        if S.folders-note.text != "": NoteView { note: S.folders-note; }
+        if S.pairs.length > 0: SectionLabel { text: "IN PRIORITY ORDER"; }
+        for p[i] in S.pairs: VerticalLayout {
+            if S.folder-filter == 0 || (S.folder-filter == 1 && p.enabled) || (S.folder-filter == 2 && !p.enabled): ItemCard {
+                // After Move up/down, focus follows the folder to its new row.
+                property <int> focus-ask: S.moved-to == i ? S.moved-seq : 0;
+                changed focus-ask => {
+                    if S.moved-to == i { menu.focus(); }
+                }
+                HorizontalLayout {
+                    padding-top: 14px;
+                    padding-bottom: 14px;
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    spacing: 14px;
+                    VerticalLayout { alignment: start; padding-top: 1px; Prio { n: i + 1; } }
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        spacing: 6px;
+                        Text { text: p.id; color: p.enabled ? Theme.ink : Theme.muted; font-weight: 600; overflow: elide; }
+                        Caption { text: p.paths; overflow: elide; wrap: no-wrap; }
+                        HorizontalLayout {
+                            alignment: start;
+                            if !p.enabled: HorizontalLayout { padding-right: 6px; Chip { tone: 4; text: "Off"; } }
+                            // This folder's line from the engine's status, as chips.
+                            for r in S.rows: HorizontalLayout {
+                                spacing: 6px;
+                                padding-right: r.name == p.id ? 6px : 0px;
+                                if r.name == p.id && r.kind == 2: Chip { tone: 1; icon: "\u{E73E}"; text: "Up to date"; }
+                                if r.name == p.id && r.kind == 1: Chip { text: r.right; }
+                                if r.name == p.id && (r.kind == 0 || r.kind == 3) && r.right != "": Chip { text: r.right + " on the laptop"; }
+                                if r.name == p.id && r.kind == 0 && r.detail != "": Chip { text: r.detail; }
+                                if r.name == p.id && r.kind == 3: Chip { tone: 2; icon: "\u{E7BA}"; text: r.detail; }
+                            }
+                            if p.allow-empty: Chip { text: "Allowed to be empty"; }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            Toggle { label: "Carry " + p.id; checked: p.enabled; toggled => { S.toggle-pair(i); } }
+                            menu := Manage {
+                                label: "Manage " + p.id;
+                                items: [
+                                    { text: "Edit folder", icon: "\u{E70F}", enabled: true },
+                                    { text: "Move up", icon: "\u{E70E}", enabled: i > 0 },
+                                    { text: "Move down", icon: "\u{E70D}", enabled: i < S.pairs.length - 1 },
+                                    { text: "Remove folder\u{2026}", icon: "\u{E74D}", enabled: true, danger: true, separator-before: true },
+                                ];
+                                activated(k) => {
+                                    if k == 1 {
+                                        S.move-pair(i, -1); S.moved-up = true; S.moved-to = i - 1; S.moved-seq += 1;
+                                    } else if k == 2 {
+                                        S.move-pair(i, 1); S.moved-up = false; S.moved-to = i + 1; S.moved-seq += 1;
+                                    } else {
+                                        // Remove opens the folder too: its Remove section says what removing discards.
+                                        S.edit-pair(i);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if S.pairs.length == 0: ItemCard {
+            VerticalLayout {
+                padding: 16px;
+                spacing: 8px;
+                Text { text: "No folders yet"; color: Theme.ink; font-weight: 600; }
+                Lead {
+                    text: "A folder pair is a folder on " + S.source-place + " and the folder on " + S.destination-place + " that should match it. Ferry copies what " + S.destination-place + " is missing onto the laptop at " + S.source-place + " and unloads it at " + S.destination-place + ". Deletes at " + S.source-place + " are repeated at " + S.destination-place + " once everything new has arrived.";
+                }
+            }
+        }
+    }
+
+    if S.editing: FocusScope {
+        // Esc closes the form; the scope itself is never a Tab stop.
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        key-pressed(e) => {
+            if e.text == Key.Escape { S.cancel-pair(); return accept; }
+            reject
+        }
+        VerticalLayout {
+            spacing: 8px;
+            FolderForm { }
+            if !S.adding: SectionLabel { text: "REMOVE"; }
+            if !S.adding: Card {
+                CardRow {
+                    title: "Remove this folder";
+                    body: "Ferry stops carrying it and discards the files it carried for it that aren't at " + S.destination-place + " yet. Files already at " + S.destination-place + " stay there.";
+                    VerticalLayout { alignment: center; Btn { icon: "\u{E74D}"; text: "Remove folder"; clicked => { S.remove-pair(); } } }
+                }
+            }
+        }
+    }
+}
+
+// ---------- Locations ----------
+
+export component ServerCard inherits VerticalLayout {
+    in property <int> side;
+    in property <string> title;
+    // What the user calls this place, for the Remember button.
+    in property <string> place;
+    in property <string> name-placeholder;
+    in-out property <string> server-name;
+    in property <string> target;
+    in property <Note> note;
+    in property <[NetRow]> nets;
+    // The network row whose trust switch is asking to confirm, or -1.
+    in property <int> asking: -1;
+    in property <Note> path;
+    // The warning opens with focus on its confirm button.
+    changed asking => {
+        if self.asking >= 0 {
+            trust-btn.focus();
+        }
+    }
+    // The Locations page shows the path line and learned networks, and saves from its header; the
+    // first run titles the step itself and moves on with its own Next.
+    in property <bool> full: true;
+    in property <string> lan-placeholder: "192.0.2.10";
+    in property <string> ts-placeholder: "source-nas";
+    in-out property <string> lan;
+    in-out property <string> ts;
+    in-out property <string> user;
+    in-out property <string> pass;
+    forward-focus: name-field;
+    spacing: 8px;
+
+    // How copies would reach this server from where the laptop is now.
+    if root.full && root.path.text != "": HorizontalLayout {
+        padding-top: 12px;
+        spacing: 8px;
+        Icon {
+            text: root.path.kind == 2 ? "\u{E7BA}" : root.path.kind == 1 ? "\u{E73E}" : "\u{E946}";
+            color: root.path.kind == 2 ? Theme.warn : root.path.kind == 1 ? Theme.ok : Theme.muted;
+        }
+        Text {
+            text: root.path.text;
+            horizontal-stretch: 1;
+            color: root.path.kind == 2 ? Theme.warn : root.path.kind == 1 ? Theme.ok : Theme.muted;
+            wrap: word-wrap;
+            accessible-role: text;
+            accessible-label: root.title + ": " + self.text;
+        }
+    }
+
+    SectionLabel { text: "SERVER"; }
+    Card {
+        VerticalLayout {
+            FormRow {
+                first: true;
+                title: "Name";
+                body: "What you call this place. Ferry uses it in its messages.";
+                name-field := Field {
+                    name: "Name";
+                    hint: "What you call this place. Ferry uses it in its messages.";
+                    show-hint: false;
+                    max-width: 420px;
+                    placeholder: root.name-placeholder;
+                    text <=> root.server-name;
+                }
+            }
+            FormRow {
+                title: "Address on its network";
+                body: "Name or IP address Ferry uses when the laptop is there.";
+                Field {
+                    name: "Address on its network";
+                    hint: "Name or IP address Ferry uses when the laptop is there.";
+                    show-hint: false;
+                    max-width: 420px;
+                    placeholder: "For example, " + root.lan-placeholder;
+                    text <=> root.lan;
+                }
+            }
+            FormRow {
+                title: "Remote address (optional)";
+                body: "How Ferry reaches this server when you're somewhere else, for example a Tailscale, WireGuard or ZeroTier address. Leave empty if it's only reachable on its own network.";
+                Field {
+                    name: "Remote address";
+                    hint: "Optional. How Ferry reaches this server when you're somewhere else.";
+                    show-hint: false;
+                    max-width: 420px;
+                    placeholder: "For example, " + root.ts-placeholder;
+                    text <=> root.ts;
+                }
+            }
+        }
+    }
+
+    SectionLabel { text: "SIGN-IN"; }
+    Card {
+        VerticalLayout {
+            FormRow {
+                first: true;
+                title: "User name";
+                body: "The account Ferry signs in with.";
+                Field {
+                    name: "User name";
+                    hint: "The account Ferry signs in with.";
+                    show-hint: false;
+                    max-width: 420px;
+                    text <=> root.user;
+                }
+            }
+            FormRow {
+                title: "Password";
+                body: "Stored in Windows Credential Manager as " + root.target + ". Leave empty to keep the saved one.";
+                Field {
+                    name: "Password";
+                    hint: "Leave empty to keep the saved one.";
+                    show-hint: false;
+                    max-width: 420px;
+                    password: true;
+                    text <=> root.pass;
+                    accepted => { if root.full { S.save-server(root.side); } else { S.next(); } }
+                }
+            }
+        }
+    }
+    // The first run has no page header, so Test sits under the fields.
+    if !root.full: HorizontalLayout {
+        alignment: start;
+        padding-top: 4px;
+        Btn { text: "Test connection"; label: "Test connection to " + root.title; clicked => { S.test-server(root.side); } }
+    }
+    if root.note.text != "": NoteView { note: root.note; }
+
+    if root.full: SectionLabel {
+        text: "NETWORKS FERRY RECOGNIZES";
+        Btn { icon: "\u{E701}"; text: "Remember this network"; label: "Remember this network as " + root.place; clicked => { S.remember(root.side); } }
+    }
+    if root.full && root.nets.length == 0: Caption {
+        text: "None yet. While the laptop is on this place's network, choose Remember this network.";
+    }
+    for n[i] in root.nets: ItemCard {
+        HorizontalLayout {
+            padding-top: 14px;
+            padding-bottom: 14px;
+            padding-left: 16px;
+            padding-right: 16px;
+            spacing: 14px;
+            VerticalLayout { alignment: start; padding-top: 2px; Icon { text: "\u{E701}"; color: Theme.ink; } }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                min-width: 0px;
+                spacing: 6px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Text { text: n.name; color: Theme.ink; font-weight: 600; overflow: elide; vertical-alignment: center; }
+                    if n.trusted: Chip { tone: 3; icon: "\u{E83D}"; text: "VPN trusted for copies"; }
+                }
+                HorizontalLayout { alignment: start; Chip { text: n.detail; } }
+                if n.hint != "": Caption { text: n.hint; }
+            }
+            VerticalLayout {
+                alignment: start;
+                Manage {
+                    label: "Manage " + n.name;
+                    items: [
+                        { text: n.trusted ? "Stop trusting this VPN" : "Trust this VPN for copies", icon: "\u{E83D}", enabled: n.state != 1 && n.state != 3 },
+                        { text: "Forget network", icon: "\u{E74D}", enabled: true, danger: true, separator-before: true },
+                    ];
+                    activated(k) => {
+                        if k == 1 {
+                            S.forget(root.side, i);
+                        } else if n.state == 2 {
+                            S.trust-cancel(root.side, i);
+                        } else {
+                            S.trust(root.side, i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Always there and collapsed until asked, so its wrapped text is part of the measured height.
+    Rectangle {
+        min-height: 0px;
+        max-height: root.asking >= 0 ? 1000px : 0px;
+        visible: root.asking >= 0;
+        clip: true;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: Theme.warn;
+        background: Theme.layer;
+        Icon { x: 12px; y: 14px; height: 16px; text: "\u{E7BA}"; color: Theme.warn; }
+        VerticalLayout {
+            padding: 12px;
+            padding-left: 38px;
+            spacing: 12px;
+            Text {
+                text: "Ferry can't check where this VPN sends data. If it leaves this network, file copies will use your internet connection. Only turn this on if you know the VPN keeps traffic to this server on the local network.";
+                color: Theme.ink;
+                wrap: word-wrap;
+                accessible-role: text;
+                accessible-label: self.text;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                trust-btn := Btn {
+                    primary: true;
+                    text: "Trust this VPN";
+                    label: "Trust this VPN on " + (root.asking >= 0 ? root.nets[root.asking].name : "");
+                    clicked => { S.trust-confirm(root.side, root.asking); }
+                }
+                Btn { text: "Cancel"; label: "Cancel trusting this VPN"; clicked => { S.trust-cancel(root.side, root.asking); } }
+            }
+        }
+    }
+}
+
+export component LocationsPage inherits Page {
+    title: "Locations";
+    actions: [
+        { text: "Test connection", icon: "\u{E703}", primary: false },
+        { text: "Save " + (S.locations-side == 0 ? S.source-place : S.destination-place) + " server", icon: "", primary: true },
+    ];
+    action(i) => { if i == 0 { S.test-server(S.locations-side); } else { S.save-server(S.locations-side); } }
+    tabs: [
+        { text: S.source-place, role: "Source", badge: "", problem: S.source-path.kind == 2 || S.source-note.kind == 2 },
+        { text: S.destination-place, role: "Destination", badge: "", problem: S.destination-path.kind == 2 || S.destination-note.kind == 2 },
+    ];
+    tab <=> S.locations-side;
+
+    if S.locations-side == 0: ServerCard {
+        side: 0;
+        title: "Source server";
+        place: S.source-place;
+        name-placeholder: "e.g. Office";
+        server-name <=> S.source-name;
+        target: "Ferry\u{2060}/\u{2060}office";
+        note: S.source-note;
+        nets: S.source-nets;
+        asking: S.source-asking;
+        path: S.source-path;
+        lan <=> S.source-lan;
+        ts <=> S.source-ts;
+        user <=> S.source-user;
+        pass <=> S.source-pass;
+    }
+    if S.locations-side == 1: ServerCard {
+        side: 1;
+        title: "Destination server";
+        place: S.destination-place;
+        name-placeholder: "e.g. Home";
+        server-name <=> S.destination-name;
+        target: "Ferry\u{2060}/\u{2060}home";
+        lan-placeholder: "192.0.2.20";
+        ts-placeholder: "destination-nas";
+        note: S.destination-note;
+        nets: S.destination-nets;
+        asking: S.destination-asking;
+        path: S.destination-path;
+        lan <=> S.destination-lan;
+        ts <=> S.destination-ts;
+        user <=> S.destination-user;
+        pass <=> S.destination-pass;
+    }
+}
+
+// ---------- Activity ----------
+
+export component ActivityPage inherits Page {
+    title: "Activity";
+    actions: [{ text: "Refresh", icon: "\u{E72C}", primary: false }];
+    action(i) => { S.refresh-activity(); }
+    tabs: [
+        { text: "Waiting for your OK", role: "", badge: S.held.length > 0 ? "" + S.held.length : "", problem: false },
+        { text: "Recent", role: "", badge: "", problem: false },
+    ];
+    tab <=> S.activity-tab;
+
+    if S.activity-tab == 0: VerticalLayout {
+        spacing: 8px;
+        Lead {
+            text: "Ferry holds deletes at " + S.destination-place + " when more files vanish at " + S.source-place + " than your limits allow, in case a share went missing.";
+        }
+        if S.held.length == 0: Caption { text: "Nothing is waiting for your OK."; }
+        if S.held.length > 0: SectionLabel { text: "HELD DELETES"; }
+        for h[i] in S.held: VerticalLayout {
+            spacing: 6px;
+            ItemCard {
+                HorizontalLayout {
+                    padding-top: 14px;
+                    padding-bottom: 14px;
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    spacing: 14px;
+                    VerticalLayout { alignment: start; padding-top: 2px; Icon { text: "\u{E74D}"; color: Theme.ink; } }
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        spacing: 4px;
+                        Text { text: h.id; color: Theme.ink; font-weight: 600; overflow: elide; }
+                        Lead { text: "Files deleted at " + S.source-place + ". Ferry holds these deletes at " + S.destination-place + " until you confirm."; }
+                    }
+                    if h.button != "": VerticalLayout {
+                        alignment: center;
+                        Btn { primary: i == 0; text: h.button; label: h.button + " for " + h.id; clicked => { S.confirm(h.id); } }
+                    }
+                }
+            }
+            if h.note.text != "": NoteView { note: h.note; }
+        }
+    }
+
+    if S.activity-tab == 1: VerticalLayout {
+        spacing: 8px;
+        if S.activity-note.text != "": NoteView { note: S.activity-note; }
+        if S.lines.length == 0 && S.activity-note.text == "": Caption {
+            text: "Nothing yet. Trips, carried files, deletes and errors show up here.";
+        }
+        if S.lines.length > 0: SectionLabel { text: "RECENT"; }
+        if S.lines.length > 0: Card {
+            VerticalLayout {
+                for l[i] in S.lines: Rectangle {
+                    if i > 0: Rectangle { y: 0; height: 1px; background: Theme.stroke; }
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        padding-top: 7px;
+                        padding-bottom: 7px;
+                        spacing: 16px;
+                        Caption { text: l.time; width: l.time == "" ? 0px : 130px; wrap: no-wrap; }
+                        Text { text: l.text; color: Theme.ink; wrap: word-wrap; horizontal-stretch: 1; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------- Settings ----------
+
+component GbRow inherits CardRow {
+    in property <string> name;
+    in-out property <string> value;
+    HorizontalLayout {
+        spacing: 8px;
+        Field { width: 96px; name: root.name + ", in GB"; text <=> root.value; }
+        Text { text: "GB"; color: Theme.ink; vertical-alignment: center; }
+    }
+}
+
+export component SettingsPage inherits Page {
+    title: "Settings";
+    actions: [{ text: "Save settings", icon: "", primary: true }];
+    action(i) => { S.save-settings(); }
+
+    if S.settings-note.text != "": NoteView { note: S.settings-note; }
+
+    SectionLabel { text: "UPDATES"; }
+    Card {
+        VerticalLayout {
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                spacing: 16px;
+                VerticalLayout { alignment: center; Icon { text: "\u{E896}"; font-size: 20px; width: 20px; color: Theme.ink; } }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+                    spacing: 2px;
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        Text {
+                            text: S.update-state == 2 || S.update-state == 4 ? "Ferry " + S.update-version + " is available"
+                                : S.update-state == 3 ? "Downloading Ferry " + S.update-version
+                                : "Ferry " + S.version;
+                            color: Theme.ink;
+                            vertical-alignment: center;
+                            accessible-role: AccessibleRole.text;
+                            accessible-label: self.text;
+                        }
+                        if S.update-state == 1: Chip { tone: 1; icon: "\u{E73E}"; text: "Up to date"; }
+                        if S.update-state == 2: Chip { tone: 3; text: "New"; }
+                    }
+                    Caption {
+                        text: S.update-state == 2 ? "You have " + S.version + ". Ferry closes this window, installs it and starts again."
+                            : S.update-state == 3 ? "Ferry will close and start again in a moment. If it can't, a notification says why."
+                            : S.update-state == 1 ? "Checked just now."
+                            : "Ferry looks for a new version once a day.";
+                    }
+                }
+                if S.update-state != 2: VerticalLayout {
+                    alignment: center;
+                    Btn { icon: "\u{E72C}"; text: "Check for updates"; clicked => { S.check-update(); } }
+                }
+                if S.update-state == 2: VerticalLayout {
+                    alignment: center;
+                    Btn { primary: true; icon: "\u{E896}"; text: "Update to " + S.update-version; clicked => { S.install-update(); } }
+                }
+            }
+            CardRow {
+                first: false;
+                title: "Install updates automatically";
+                body: "Once a day, on a connection that isn't metered, and never during a trip or while paused. Ferry installs quietly and shows a notification.";
+                Toggle { label: "Install updates automatically"; checked: S.auto-update; toggled => { S.auto-update = !S.auto-update; } }
+            }
+        }
+    }
+    if S.update-note.text != "": NoteView { note: S.update-note; }
+
+    SectionLabel { text: "LAPTOP SPACE"; }
+    Card {
+        VerticalLayout {
+            GbRow {
+                title: "Space for cargo";
+                body: "Ferry fills the laptop with up to this much at " + S.source-place + ".";
+                name: "Space for cargo";
+                value <=> S.cap-gb;
+            }
+            Rectangle {
+                Rectangle { y: 0; height: 1px; background: Theme.stroke; }
+                VerticalLayout {
+                    padding: 16px;
+                    padding-top: 12px;
+                    spacing: 8px;
+                    Text { text: "Cargo folder"; color: Theme.ink; }
+                    Caption { text: "Where carried files wait on the laptop. The default is " + S.cargo-default + "."; }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Field { name: "Cargo folder"; placeholder: "Leave empty for the default folder"; text <=> S.cargo-dir; }
+                        Btn { icon: "\u{E838}"; text: "Choose folder"; label: "Choose the cargo folder"; clicked => { S.choose-cargo(); } }
+                    }
+                }
+            }
+            GbRow {
+                first: false;
+                title: "Keep free on the laptop";
+                body: "Ferry stops filling when the disk would drop below this.";
+                name: "Keep free on the laptop";
+                value <=> S.free-gb;
+            }
+        }
+    }
+
+    SectionLabel { text: "BEHAVIOR"; }
+    Card {
+        VerticalLayout {
+            CardRow {
+                title: "Pause on Battery Saver";
+                body: "Stop copying while Windows Battery Saver is on.";
+                Toggle { label: "Pause on Battery Saver"; checked: S.battery; toggled => { S.battery = !S.battery; } }
+            }
+            CardRow {
+                first: false;
+                title: "Start with Windows";
+                body: "Start Ferry when you sign in.";
+                Toggle { label: "Start with Windows"; checked: S.autostart; toggled => { S.autostart = !S.autostart; } }
+            }
+            CardRow {
+                first: false;
+                title: "Notify when unload finishes";
+                body: "Show a notification when " + S.destination-place + " has everything the laptop carried.";
+                Toggle { label: "Notify when unload finishes"; checked: S.notify; toggled => { S.notify = !S.notify; } }
+            }
+        }
+    }
+
+    SectionLabel { text: "DELETES AT " + S.destination-place-upper; }
+    Card {
+        CardRow {
+            icon: "\u{E74D}";
+            title: S.thresholds;
+            body: S.thresholds-why;
+        }
+    }
+
+    SectionLabel { text: "ABOUT"; }
+    Card {
+        CardRow {
+            icon: "\u{E946}";
+            title: "Ferry " + S.version;
+            body: "Free software under the MIT or Apache-2.0 license. Its windows are built with Slint, used under the Slint Royalty-free License.";
+        }
+    }
+}

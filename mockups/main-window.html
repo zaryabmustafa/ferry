@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferry Window Mockups</title>
+<style>
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+
+  --page: oklch(0.93 0.003 250);
+  --mica: oklch(0.955 0.004 250);
+  --layer: oklch(0.99 0.001 250);
+  --layer-2: oklch(0.975 0.002 250);
+  --stroke: oklch(0.885 0.004 250);
+  --stroke-strong: oklch(0.8 0.006 250);
+  --ink: oklch(0.21 0.008 250);
+  --muted: oklch(0.44 0.01 250);
+  --subtle: oklch(0.93 0.004 250);
+  --accent: oklch(0.62 0.15 62);
+  --accent-ink: oklch(0.2 0.02 250);
+  --accent-soft: oklch(0.94 0.05 75);
+  --accent-soft-ink: oklch(0.45 0.12 58);
+  --seg-2: oklch(0.76 0.13 70);
+  --seg-3: oklch(0.87 0.08 78);
+  --ok: oklch(0.5 0.12 150);
+  --ok-soft: oklch(0.94 0.04 150);
+  --warn: oklch(0.53 0.17 30);
+  --warn-soft: oklch(0.95 0.03 30);
+  --err: oklch(0.52 0.18 27);
+  --err-soft: oklch(0.95 0.03 27);
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.04), 0 16px 40px oklch(0 0 0 / 0.14);
+  --taskbar: oklch(0.94 0.004 250 / 0.92);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: oklch(0.15 0.004 250);
+    --mica: oklch(0.205 0.006 250);
+    --layer: oklch(0.255 0.006 250);
+    --layer-2: oklch(0.235 0.006 250);
+    --stroke: oklch(0.315 0.006 250);
+    --stroke-strong: oklch(0.4 0.008 250);
+    --ink: oklch(0.955 0.004 250);
+    --muted: oklch(0.74 0.01 250);
+    --subtle: oklch(0.29 0.006 250);
+    --accent: oklch(0.8 0.15 75);
+    --accent-ink: oklch(0.2 0.03 70);
+    --accent-soft: oklch(0.33 0.06 70);
+    --accent-soft-ink: oklch(0.88 0.11 80);
+    --seg-2: oklch(0.62 0.12 70);
+    --seg-3: oklch(0.45 0.07 70);
+    --ok: oklch(0.78 0.14 150);
+    --ok-soft: oklch(0.3 0.05 150);
+    --warn: oklch(0.76 0.14 30);
+    --warn-soft: oklch(0.32 0.06 30);
+    --err: oklch(0.75 0.15 27);
+    --err-soft: oklch(0.32 0.06 27);
+    --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+    --taskbar: oklch(0.2 0.005 250 / 0.92);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: oklch(0.15 0.004 250);
+  --mica: oklch(0.205 0.006 250);
+  --layer: oklch(0.255 0.006 250);
+  --layer-2: oklch(0.235 0.006 250);
+  --stroke: oklch(0.315 0.006 250);
+  --stroke-strong: oklch(0.4 0.008 250);
+  --ink: oklch(0.955 0.004 250);
+  --muted: oklch(0.74 0.01 250);
+  --subtle: oklch(0.29 0.006 250);
+  --accent: oklch(0.8 0.15 75);
+  --accent-ink: oklch(0.2 0.03 70);
+  --accent-soft: oklch(0.33 0.06 70);
+  --accent-soft-ink: oklch(0.88 0.11 80);
+  --seg-2: oklch(0.62 0.12 70);
+  --seg-3: oklch(0.45 0.07 70);
+  --ok: oklch(0.78 0.14 150);
+  --ok-soft: oklch(0.3 0.05 150);
+  --warn: oklch(0.76 0.14 30);
+  --warn-soft: oklch(0.32 0.06 30);
+  --err: oklch(0.75 0.15 27);
+  --err-soft: oklch(0.32 0.06 27);
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+  --taskbar: oklch(0.2 0.005 250 / 0.92);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--page); }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/20px var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+/* ---------- page chrome ---------- */
+.page { max-width: 1120px; margin: 0 auto; padding: 40px 16px 80px; }
+.page-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; margin-bottom: 40px; }
+.page-head h1 { font: 600 28px/36px var(--font-display); margin: 0 0 4px; letter-spacing: -0.01em; }
+.page-head p { margin: 0; color: var(--muted); max-width: 62ch; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--subtle); color: var(--ink); font-weight: 600; }
+
+.dir { margin: 0 0 72px; }
+.dir-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
+.dir-letter { font: 600 15px/20px var(--font); width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--accent-ink); flex: none; transform: translateY(4px); }
+.dir-head h2 { font: 600 20px/28px var(--font-display); margin: 0; }
+.dir > p { margin: 0 0 20px 42px; color: var(--muted); max-width: 70ch; }
+.stage { overflow-x: auto; padding: 4px 4px 24px; }
+
+/* ---------- Win11 window ---------- */
+.win { background: var(--mica); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+.titlebar { height: 40px; display: flex; align-items: center; gap: 10px; padding-left: 14px; font-size: 12px; }
+.titlebar .grow { flex: 1; }
+.caps { display: flex; height: 100%; }
+.caps span { width: 46px; display: grid; place-items: center; color: var(--muted); }
+.app-glyph { width: 16px; height: 16px; flex: none; }
+
+.ico { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ico-20 { width: 20px; height: 20px; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--stroke); background: var(--layer); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--layer-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--subtle); }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.accent { background: var(--accent-soft); color: var(--accent-soft-ink); }
+.chip.plain { background: var(--subtle); color: var(--muted); font-weight: 500; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+
+.bar { height: 6px; border-radius: 3px; background: var(--subtle); overflow: hidden; display: flex; }
+.bar > i { display: block; height: 100%; }
+.stack > i:nth-child(1) { background: var(--accent); }
+.stack > i:nth-child(2) { background: var(--seg-2); }
+.stack > i:nth-child(3) { background: var(--seg-3); }
+.bar.thin { height: 4px; }
+.bar.fill > i { background: var(--accent); border-radius: 3px; }
+.bar.fill.done > i { background: var(--ok); }
+
+.muted { color: var(--muted); }
+.small { font-size: 12px; line-height: 16px; }
+.mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- A: Settings-style ---------- */
+.a-win { width: 1000px; }
+.a-body { display: flex; height: 620px; }
+.a-nav { width: 248px; padding: 4px 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.a-nav .who { display: flex; gap: 12px; align-items: center; padding: 8px 10px 18px; }
+.a-nav .who-ico { width: 40px; height: 40px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-soft-ink); display: grid; place-items: center; }
+.a-nav .who b { display: block; font-weight: 600; }
+.nav-item { position: relative; display: flex; align-items: center; gap: 14px; height: 36px; padding: 0 12px; border-radius: 4px; color: var(--ink); cursor: default; }
+.nav-item:hover { background: var(--subtle); }
+.nav-item[aria-current="page"] { background: var(--layer); }
+.nav-item[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.nav-item .count { margin-left: auto; font-size: 12px; color: var(--muted); }
+.a-nav .spacer { flex: 1; }
+.a-main { flex: 1; background: var(--layer-2); border-top-left-radius: 8px; border-left: 1px solid var(--stroke); border-top: 1px solid var(--stroke); padding: 24px 32px; overflow: hidden; }
+.a-main h3 { font: 600 28px/36px var(--font-display); margin: 0 0 20px; letter-spacing: -0.01em; }
+.group-label { font-weight: 600; margin: 22px 0 8px; }
+.row { display: flex; align-items: center; gap: 16px; padding: 14px 16px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 6px; }
+.rows { display: flex; flex-direction: column; gap: 3px; }
+.row .grow { flex: 1; min-width: 0; }
+.row .title { font-weight: 500; }
+.row-ico { width: 32px; height: 32px; display: grid; place-items: center; color: var(--ink); flex: none; }
+.place { display: flex; align-items: center; gap: 16px; padding: 18px 16px; }
+.place .big { font: 600 20px/28px var(--font-display); }
+.place-ico { width: 48px; height: 48px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-soft-ink); flex: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; }
+.carry-top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.carry-top .big { font: 600 20px/28px var(--font-display); }
+.folder-row .meta { display: flex; gap: 8px; align-items: center; }
+.folder-prog { width: 210px; text-align: right; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.prio { width: 22px; height: 22px; border-radius: 4px; background: var(--subtle); color: var(--muted); font-size: 12px; font-weight: 600; display: grid; place-items: center; flex: none; }
+
+/* ---------- B: Tray flyout ---------- */
+.b-stage { position: relative; width: 1000px; height: 700px; border-radius: 10px; overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 85% 10%, oklch(0.72 0.08 115 / 0.55), transparent 60%),
+    radial-gradient(90% 80% at 10% 90%, oklch(0.55 0.06 200 / 0.5), transparent 60%),
+    oklch(0.42 0.03 150);
+}
+.taskbar { position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: var(--taskbar); border-top: 1px solid var(--stroke); display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 12px; font-size: 12px; }
+.tray-ico { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 4px; }
+.tray-ico.on { background: var(--subtle); }
+.clock { text-align: right; padding: 0 8px; line-height: 16px; }
+.flyout { position: absolute; right: 12px; bottom: 60px; width: 380px; background: var(--mica); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+.fly-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+.fly-head b { font-weight: 600; }
+.fly-head .grow { flex: 1; }
+.fly-status { padding: 10px 16px 16px; }
+.fly-status .big { font: 600 20px/28px var(--font-display); margin-bottom: 2px; }
+.fly-list { background: var(--layer-2); border-top: 1px solid var(--stroke); border-bottom: 1px solid var(--stroke); padding: 6px; }
+.fly-row { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 4px; }
+.fly-row:hover { background: var(--subtle); }
+.fly-row .grow { flex: 1; min-width: 0; }
+.fly-row .bar { margin-top: 6px; }
+.fly-foot { display: flex; gap: 8px; padding: 12px 16px; align-items: center; }
+.fly-foot .grow { flex: 1; }
+.toast { position: absolute; left: 24px; bottom: 60px; width: 364px; background: var(--mica); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--shadow); padding: 14px 16px 16px; }
+.toast-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.toast-head .grow { flex: 1; }
+.toast b { display: block; font-weight: 600; margin-bottom: 2px; }
+.toast-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.toast-actions .btn { justify-content: center; }
+.stage-note { position: absolute; left: 24px; top: 20px; color: oklch(0.98 0 0); font-size: 12px; background: oklch(0 0 0 / 0.35); padding: 4px 10px; border-radius: 12px; }
+.err-ico { color: var(--err); }
+
+/* ---------- C: Route ---------- */
+.c-win { width: 1000px; }
+.c-body { padding: 8px 32px 28px; }
+.c-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.c-top h3 { font: 600 28px/36px var(--font-display); margin: 0; letter-spacing: -0.01em; }
+.route { display: grid; grid-template-columns: 1fr 1.25fr 1fr; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; position: relative; }
+.stop { padding: 20px 22px 22px; position: relative; }
+.stop + .stop { border-left: 1px solid var(--stroke); }
+.stop-name { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 14px; }
+.pin { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--subtle); color: var(--muted); flex: none; }
+.stop.here .pin { background: var(--accent); color: var(--accent-ink); }
+.stop .here-tag { margin-left: auto; }
+.stop .big { font: 600 20px/28px var(--font-display); }
+.stop .line { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
+.stop .line + .line { border-top: 1px solid var(--stroke); }
+.arrow { position: absolute; top: 34px; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%; background: var(--layer); border: 1px solid var(--stroke); display: grid; place-items: center; color: var(--muted); z-index: 1; }
+.c-cols { display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; margin-top: 24px; }
+.c-cols h4 { margin: 0 0 10px; font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; }
+.table { background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; overflow: hidden; }
+.tr { display: grid; grid-template-columns: 1fr 120px 80px 92px; gap: 12px; align-items: center; padding: 9px 14px; }
+.tr + .tr { border-top: 1px solid var(--stroke); }
+.tr.th { background: var(--layer-2); font-size: 12px; color: var(--muted); padding-block: 7px; }
+.tr .file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed { display: flex; flex-direction: column; gap: 3px; }
+.feed .item { display: flex; gap: 12px; padding: 10px 12px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 6px; }
+.feed .item .ico { margin-top: 2px; }
+.feed .item .grow { min-width: 0; }
+.feed .file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed .item .grow > span { display: block; }
+.tr .chip { justify-self: start; }
+
+.pick { margin: 4px 0 0 42px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .nav-item, .fly-row, .seg button { transition: background-color 150ms cubic-bezier(0.25, 1, 0.5, 1); }
+  .live > i { animation: grow 1.6s cubic-bezier(0.25, 1, 0.5, 1) both; transform-origin: left; }
+  @keyframes grow { from { transform: scaleX(0.92); opacity: 0.7; } }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-ferry" viewBox="0 0 24 24"><g stroke="none"><rect x="6" y="5" width="7" height="3.4" rx="1" fill="oklch(0.78 0.15 72)"/><rect x="6" y="9.6" width="12" height="3.4" rx="1" fill="currentColor"/><path d="M2.8 14.6h18.4l-2.6 4.6H5.4z" fill="currentColor"/></g><path d="M3 21.6q2.25-1.2 4.5 0t4.5 0t4.5 0t4.5 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/></symbol>
+    <symbol id="i-status" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5Z"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.2"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6.5h12M8 12h12M8 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.4-2.3 1a7.5 7.5 0 0 0-2.6-1.5L14 2.6h-4l-.5 2.5A7.5 7.5 0 0 0 6.9 6.6l-2.3-1-2 3.4 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.4 2.3-1a7.5 7.5 0 0 0 2.6 1.5l.5 2.5h4l.5-2.5a7.5 7.5 0 0 0 2.6-1.5l2.3 1 2-3.4Z"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24"><path d="M4.5 20.5V5A1.5 1.5 0 0 1 6 3.5h8A1.5 1.5 0 0 1 15.5 5v15.5M15.5 9.5H18a1.5 1.5 0 0 1 1.5 1.5v9.5M3 20.5h18M8 7.5h1M11 7.5h1M8 11h1M11 11h1M8 14.5h1M11 14.5h1"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5H15V15h-6v5.5H5.5A1.5 1.5 0 0 1 4 19Z"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 18.5h19"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v13M6.5 11.5 12 17l5.5-5.5M5 20.5h14"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l.8 12.1A1.5 1.5 0 0 0 8.8 20h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12.1"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5.5v13M15 5.5v13"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.5h.01"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5 5 6v5.5c0 4.3 3 7.6 7 9 4-1.4 7-4.7 7-9V6Z"/><path d="m9 12 2.2 2.2L15.5 10"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 9a13.5 13.5 0 0 1 18 0M6 12.5a9 9 0 0 1 12 0M9 16a4.5 4.5 0 0 1 6 0M12 19.5h.01"/></symbol>
+    <symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4ZM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="i-min" viewBox="0 0 24 24"><path d="M7 12h10"/></symbol>
+    <symbol id="i-max" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><path d="M6 12h.01M12 12h.01M18 12h.01"/></symbol>
+  </defs>
+</svg>
+
+<main class="page">
+  <header class="page-head">
+    <div>
+      <h1>Ferry: main window directions</h1>
+      <p>Three takes on the same moment: you're at the office, the laptop is filling with what home is missing. "Ferry" is a placeholder name. Same data in all three so you can compare layout, not content.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" data-t="light">Light</button>
+      <button type="button" data-t="dark">Dark</button>
+      <button type="button" data-t="system">System</button>
+    </div>
+  </header>
+
+  <!-- ============ A ============ -->
+  <section class="dir" aria-labelledby="a-h">
+    <div class="dir-head"><span class="dir-letter">A</span><h2 id="a-h">Settings app</h2></div>
+    <p>Looks like a page of Windows Settings. Left navigation, a status page that reads top to bottom: where you are, how full the laptop is, how each folder is doing. The most familiar option, and the easiest to extend later.</p>
+    <div class="stage">
+      <div class="win a-win">
+        <div class="titlebar">
+          <svg class="ico app-glyph"><use href="#i-ferry"/></svg><span>Ferry</span><span class="grow"></span>
+          <div class="caps"><span><svg class="ico"><use href="#i-min"/></svg></span><span><svg class="ico"><use href="#i-max"/></svg></span><span><svg class="ico"><use href="#i-x"/></svg></span></div>
+        </div>
+        <div class="a-body">
+          <nav class="a-nav" aria-label="Sections">
+            <div class="who">
+              <div class="who-ico"><svg class="ico ico-20"><use href="#i-laptop"/></svg></div>
+              <div><b>STUDIO-LAPTOP</b><span class="small muted">Office → Home</span></div>
+            </div>
+            <div class="nav-item" aria-current="page"><svg class="ico"><use href="#i-status"/></svg>Status</div>
+            <div class="nav-item"><svg class="ico"><use href="#i-folder"/></svg>Folders<span class="count">3</span></div>
+            <div class="nav-item"><svg class="ico"><use href="#i-pin"/></svg>Locations</div>
+            <div class="nav-item"><svg class="ico"><use href="#i-list"/></svg>Activity</div>
+            <div class="spacer"></div>
+            <div class="nav-item"><svg class="ico"><use href="#i-gear"/></svg>Settings</div>
+          </nav>
+          <div class="a-main">
+            <h3>Status</h3>
+
+            <div class="row place">
+              <div class="place-ico"><svg class="ico ico-20"><use href="#i-building"/></svg></div>
+              <div class="grow">
+                <div class="big">At the office</div>
+                <div class="muted">Office router recognized. Copying over the local network at 108 MB/s.</div>
+              </div>
+              <span class="chip ok"><span class="dot"></span>Tailscale connected</span>
+              <button class="btn"><svg class="ico"><use href="#i-pause"/></svg>Pause</button>
+            </div>
+
+            <div class="group-label">Laptop space</div>
+            <div class="row" style="display:block">
+              <div class="carry-top">
+                <div><span class="big num">38.2 GB</span> <span class="muted num">of 50 GB carried</span></div>
+                <span class="small muted">Home is about 3 trips behind</span>
+              </div>
+              <div class="bar stack live" style="height:8px"><i style="width:2.8%"></i><i style="width:73.6%"></i><i style="width:0%"></i></div>
+              <div class="legend small muted">
+                <span><i class="sw" style="background:var(--accent)"></i>repositories 1.39 GB</span>
+                <span><i class="sw" style="background:var(--seg-2)"></i>vm-backups 36.8 GB</span>
+                <span><i class="sw" style="background:var(--seg-3)"></i>images 0 GB</span>
+                <span><i class="sw" style="background:var(--subtle);outline:1px solid var(--stroke)"></i>free 11.8 GB</span>
+              </div>
+            </div>
+
+            <div class="group-label">Folders, in priority order</div>
+            <div class="rows">
+              <div class="row folder-row">
+                <span class="prio">1</span>
+                <div class="grow">
+                  <div class="title">repositories</div>
+                  <div class="small muted mono">\\office\repositories → \\home\repositories</div>
+                </div>
+                <div class="folder-prog">
+                  <span class="chip accent">4 new carried</span>
+                  <span class="small muted">1 old zip removed at home</span>
+                </div>
+              </div>
+              <div class="row folder-row">
+                <span class="prio">2</span>
+                <div class="grow">
+                  <div class="title">vm-backups</div>
+                  <div class="small muted mono">\\office\backups\vm → \\home\backups\vm</div>
+                </div>
+                <div class="folder-prog">
+                  <span class="small num">61% at home</span>
+                  <div class="bar fill thin" style="width:140px"><i style="width:61%"></i></div>
+                </div>
+              </div>
+              <div class="row folder-row">
+                <span class="prio">3</span>
+                <div class="grow">
+                  <div class="title">images</div>
+                  <div class="small muted mono">\\office\images → \\home\images</div>
+                </div>
+                <div class="folder-prog">
+                  <span class="chip ok"><svg class="ico" style="width:14px;height:14px"><use href="#i-check"/></svg>Up to date</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ B ============ -->
+  <section class="dir" aria-labelledby="b-h">
+    <div class="dir-head"><span class="dir-letter">B</span><h2 id="b-h">Tray flyout</h2></div>
+    <p>No full window by default. Clicking the tray icon opens a small panel like Windows quick settings: one status line, one meter, the folders. Settings open in a separate small window only when you need them. Lightest on memory. Shown here with the error notification you asked for.</p>
+    <div class="stage">
+      <div class="b-stage">
+        <span class="stage-note">Desktop, on the Studio network</span>
+
+        <div class="toast" role="status">
+          <div class="toast-head"><svg class="ico app-glyph"><use href="#i-ferry"/></svg><span>Ferry</span><span class="grow"></span><svg class="ico"><use href="#i-more"/></svg><svg class="ico"><use href="#i-x"/></svg></div>
+          <div style="display:flex;gap:12px">
+            <svg class="ico ico-20 err-ico" style="margin-top:2px"><use href="#i-alert"/></svg>
+            <div>
+              <b>1 file failed its check at Lake house</b>
+              <span class="muted">vm-backups/win11-dev.vhdx didn't match after copying. Ferry kept the laptop copy and will try again next time you're at Lake house.</span>
+            </div>
+          </div>
+          <div class="toast-actions"><button class="btn">Open Ferry</button><button class="btn">Dismiss</button></div>
+        </div>
+
+        <div class="flyout" role="dialog" aria-label="Ferry">
+          <div class="fly-head">
+            <svg class="ico app-glyph"><use href="#i-ferry"/></svg><b>Ferry</b><span class="grow"></span>
+            <span class="chip accent"><svg class="ico" style="width:14px;height:14px"><use href="#i-building"/></svg>At Studio</span>
+            <button class="btn ghost" aria-label="Settings" style="padding:0 8px"><svg class="ico"><use href="#i-gear"/></svg></button>
+          </div>
+          <div class="fly-status">
+            <div class="big">Filling the laptop</div>
+            <div class="muted num" style="margin-bottom:12px">38.2 of 50 GB · 108 MB/s · about 2 min left</div>
+            <div class="bar stack live" style="height:8px"><i style="width:2.8%"></i><i style="width:73.6%"></i></div>
+          </div>
+          <div class="fly-list">
+            <div class="fly-row">
+              <svg class="ico"><use href="#i-folder"/></svg>
+              <div class="grow"><div>repositories</div><div class="small muted">4 new carried · 1 removed at Lake house</div></div>
+              <span class="small muted num">1.39 GB</span>
+            </div>
+            <div class="fly-row">
+              <svg class="ico"><use href="#i-folder"/></svg>
+              <div class="grow"><div>vm-backups</div><div class="bar fill thin"><i style="width:61%"></i></div></div>
+              <span class="small muted num">61%</span>
+            </div>
+            <div class="fly-row">
+              <svg class="ico"><use href="#i-folder"/></svg>
+              <div class="grow"><div>images</div><div class="small muted">Up to date</div></div>
+              <svg class="ico" style="color:var(--ok)"><use href="#i-check"/></svg>
+            </div>
+          </div>
+          <div class="fly-foot">
+            <span class="small muted grow">Lake house is about 3 trips behind</span>
+            <button class="btn"><svg class="ico"><use href="#i-pause"/></svg>Pause</button>
+          </div>
+        </div>
+
+        <div class="taskbar">
+          <span class="tray-ico"><svg class="ico"><use href="#i-wifi"/></svg></span>
+          <span class="tray-ico"><svg class="ico"><use href="#i-vol"/></svg></span>
+          <span class="tray-ico on"><svg class="ico"><use href="#i-ferry"/></svg></span>
+          <span class="clock num">10:42 AM<br>16/10/2026</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ C ============ -->
+  <section class="dir" aria-labelledby="c-h">
+    <div class="dir-head"><span class="dir-letter">C</span><h2 id="c-h">The route</h2></div>
+    <p>Built around the trip itself: Office, Laptop, Home, with "you are here" on the stop you're at. Below that, what's in the current load and what Ferry already did over Tailscale. Best at showing why it works the way it does.</p>
+    <div class="stage">
+      <div class="win c-win">
+        <div class="titlebar">
+          <svg class="ico app-glyph"><use href="#i-ferry"/></svg><span>Ferry</span><span class="grow"></span>
+          <div class="caps"><span><svg class="ico"><use href="#i-min"/></svg></span><span><svg class="ico"><use href="#i-max"/></svg></span><span><svg class="ico"><use href="#i-x"/></svg></span></div>
+        </div>
+        <div class="c-body">
+          <div class="c-top">
+            <h3>Loading at the office</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn"><svg class="ico"><use href="#i-pause"/></svg>Pause</button>
+              <button class="btn"><svg class="ico"><use href="#i-gear"/></svg>Settings</button>
+            </div>
+          </div>
+
+          <div class="route">
+            <span class="arrow" style="left:30.77%"><svg class="ico" style="width:12px;height:12px"><use href="#i-arrow"/></svg></span>
+            <span class="arrow" style="left:69.23%"><svg class="ico" style="width:12px;height:12px"><use href="#i-arrow"/></svg></span>
+            <div class="stop here">
+              <div class="stop-name"><span class="pin"><svg class="ico"><use href="#i-building"/></svg></span>Office<span class="chip accent here-tag">You're here</span></div>
+              <div class="line"><span class="muted">Folders</span><span class="num">3</span></div>
+              <div class="line"><span class="muted">Total size</span><span class="num">412 GB</span></div>
+              <div class="line"><span class="muted">Network</span><span>Local, 108 MB/s</span></div>
+            </div>
+            <div class="stop">
+              <div class="stop-name"><span class="pin"><svg class="ico"><use href="#i-laptop"/></svg></span>Laptop</div>
+              <div style="margin-bottom:10px"><span class="big num">38.2 GB</span> <span class="muted num">of 50 GB</span></div>
+              <div class="bar stack live" style="height:8px;margin-bottom:10px"><i style="width:2.8%"></i><i style="width:73.6%"></i></div>
+              <div class="small muted">Fills in about 2 minutes. Unloads automatically on the home network.</div>
+            </div>
+            <div class="stop">
+              <div class="stop-name"><span class="pin"><svg class="ico"><use href="#i-home"/></svg></span>Home<span class="chip ok here-tag"><span class="dot"></span>Tailscale</span></div>
+              <div class="line"><span class="muted">Mirrored</span><span class="num">334 GB</span></div>
+              <div class="line"><span class="muted">Still missing</span><span class="num">78 GB</span></div>
+              <div class="line"><span class="muted">Trips left</span><span class="num">about 3</span></div>
+            </div>
+          </div>
+
+          <div class="c-cols">
+            <div>
+              <h4>This load <span class="small muted num" style="font-weight:400">5 files · 38.2 GB</span></h4>
+              <div class="table">
+                <div class="tr th"><span>File</span><span>Folder</span><span>Size</span><span>State</span></div>
+                <div class="tr"><span class="file mono">vm/win11-dev.vhdx</span><span class="muted">vm-backups</span><span class="num">36.8 GB</span><span class="chip accent">Copying</span></div>
+                <div class="tr"><span class="file mono">studio/site-export.zip</span><span class="muted">repositories</span><span class="num">1.38 GB</span><span class="chip ok">Carried</span></div>
+                <div class="tr"><span class="file mono">clients/brochure.zip</span><span class="muted">repositories</span><span class="num">5.24 MB</span><span class="chip ok">Carried</span></div>
+                <div class="tr"><span class="file mono">apps/dashboard.zip</span><span class="muted">repositories</span><span class="num">2.54 MB</span><span class="chip ok">Carried</span></div>
+                <div class="tr"><span class="file mono">website/site-build.zip</span><span class="muted">repositories</span><span class="num">683 KB</span><span class="chip ok">Carried</span></div>
+              </div>
+            </div>
+            <div>
+              <h4>Done over Tailscale</h4>
+              <div class="feed">
+                <div class="item"><svg class="ico" style="color:var(--muted)"><use href="#i-trash"/></svg><div class="grow"><span class="file mono">site-export-2026-10-15.zip</span><span class="small muted">Removed at home, deleted at office by the backup job</span></div></div>
+                <div class="item"><svg class="ico" style="color:var(--muted)"><use href="#i-list"/></svg><div class="grow"><span>Read home file list</span><span class="small muted">212 files, 41 KB transferred</span></div></div>
+                <div class="item"><svg class="ico" style="color:var(--muted)"><use href="#i-shield"/></svg><div class="grow"><span>No file data sent over Tailscale</span><span class="small muted">Large copies only run on local networks</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const btns = document.querySelectorAll('.seg button');
+  let saved = 'system';
+  try { saved = localStorage.getItem('ferry-theme') || 'system'; } catch (e) {}
+  const apply = (t) => {
+    if (t === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    btns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === t)));
+    try { localStorage.setItem('ferry-theme', t); } catch (e) {}
+  };
+  btns.forEach(b => b.addEventListener('click', () => apply(b.dataset.t)));
+  apply(saved);
+})();
+</script>
+</body>
+</html>

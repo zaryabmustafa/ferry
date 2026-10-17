@@ -1,0 +1,7 @@
+# One pinned toolchain for local builds and CI (CI also uses this file as its cache key).
+# CI cross-compiles the Windows programs on Linux with the GNU target; local builds use MSVC.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["clippy"]
+targets = ["x86_64-pc-windows-gnu"]

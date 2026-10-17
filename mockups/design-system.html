@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferry Design System</title>
+<link rel="icon" href="../assets/brand/ferry.ico">
+<style>
+/* Tokens mirror DESIGN.md and crates/ferry-ui/ui/theme.slint. Accent here is the amber fallback. */
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --page: #e4e6e9;
+  --mica: #eef0f3; --layer: #fbfcfc; --layer-2: #f6f7f8; --subtle: #e6e8ea; --stroke: #d7d9dc;
+  --ink: #16191c; --muted: #4e5358; --ok: #21763c; --warn: #ba3728;
+  --accent: #c46d00; --accent-ink: #0f171f;
+  --accent-soft: color-mix(in oklab, var(--accent) 18%, var(--mica));
+  --seg-2: color-mix(in oklab, var(--accent) 60%, var(--mica));
+  --seg-3: color-mix(in oklab, var(--accent) 30%, var(--mica));
+  --amber: #e69825; --mark-cargo: #c46d00;
+  --plate-hi: oklch(0.38 0.03 250); --plate: oklch(0.27 0.02 250); --plate-lo: oklch(0.2 0.02 250);
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.04), 0 16px 40px oklch(0 0 0 / 0.14);
+  --taskbar: #f3f3f3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #101214;
+    --mica: #15171a; --layer: #212326; --layer-2: #1c1e21; --subtle: #292c2e; --stroke: #2f3235;
+    --ink: #eef0f3; --muted: #a6abb1; --ok: #6fd087; --warn: #fd8c7b;
+    --accent: #f5ae39; --accent-ink: #1f1306; --mark-cargo: #e69825;
+    --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+    --taskbar: #202020;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #101214;
+  --mica: #15171a; --layer: #212326; --layer-2: #1c1e21; --subtle: #292c2e; --stroke: #2f3235;
+  --ink: #eef0f3; --muted: #a6abb1; --ok: #6fd087; --warn: #fd8c7b;
+  --accent: #f5ae39; --accent-ink: #1f1306; --mark-cargo: #e69825;
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+  --taskbar: #202020;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--page); }
+body { margin: 0; color: var(--ink); font: 14px/20px var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+.page { max-width: 1120px; margin: 0 auto; padding: 40px 16px 80px; }
+.page-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; margin-bottom: 48px; }
+.page-head h1 { font: 600 28px/36px var(--font-display); margin: 0 0 4px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 12px; }
+.page-head p { margin: 0; color: var(--muted); max-width: 64ch; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--subtle); color: var(--ink); font-weight: 600; }
+
+section { margin-bottom: 56px; }
+section > h2 { font: 600 20px/28px var(--font-display); margin: 0 0 4px; }
+section > p { margin: 0 0 16px; color: var(--muted); max-width: 72ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.card { background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; padding: 20px; min-width: 0; }
+.card h3 { font: 600 12px/16px var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 16px; }
+.cap { font-size: 12px; line-height: 16px; color: var(--muted); }
+
+/* brand */
+.mark { color: var(--ink); }
+.icons { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; }
+.icons figure { margin: 0; display: grid; justify-items: center; gap: 6px; }
+.lockup { display: flex; align-items: center; gap: 12px; font: 600 34px/1 var(--font-display); letter-spacing: -0.02em; }
+.clear { position: relative; display: inline-grid; place-items: center; padding: 18px; border: 1px dashed var(--muted); border-radius: 4px; }
+.donts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.donts figure { margin: 0; display: grid; justify-items: center; gap: 8px; padding: 12px 4px; background: var(--subtle); border-radius: 6px; text-align: center; }
+.tray-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tray-cell { display: grid; justify-items: center; gap: 8px; padding: 12px 4px; border-radius: 6px; font-size: 11px; line-height: 14px; text-align: center; }
+.tray-cell.l { background: #f3f3f3; color: #444; }
+.tray-cell.d { background: #202020; color: #bbb; }
+.tray-cell img { image-rendering: pixelated; }
+
+/* color */
+.sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.sw { border: 1px solid var(--stroke); border-radius: 8px; overflow: hidden; background: var(--layer); }
+.sw i { display: block; height: 56px; border-bottom: 1px solid var(--stroke); }
+.sw div { padding: 8px 10px; }
+.sw b { display: block; font-weight: 600; font-size: 13px; }
+.sw code { font: 12px/16px ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--muted); }
+
+/* type */
+.type-row { display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: baseline; padding: 12px 0; border-top: 1px solid var(--stroke); }
+.type-row:first-of-type { border-top: 0; }
+
+/* space */
+.spaces { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; }
+.spaces div { display: grid; justify-items: center; gap: 6px; }
+.spaces i { display: block; background: var(--accent-soft); border: 1px solid var(--accent); }
+.radii { display: flex; gap: 16px; flex-wrap: wrap; }
+.radii div { width: 72px; height: 56px; border: 1px solid var(--stroke); background: var(--layer-2); display: grid; place-items: end center; padding-bottom: 6px; }
+
+/* components, same as mockups/main-window.html */
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--stroke); background: var(--layer); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--layer-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--subtle); }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--accent-soft); font-size: 12px; font-weight: 600; }
+.bar { height: 6px; border-radius: 3px; background: var(--subtle); overflow: hidden; display: flex; }
+.bar > i { display: block; height: 100%; }
+.frow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 6px; margin-top: 8px; }
+.frow .grow { flex: 1; min-width: 0; }
+.frow b { font-weight: 600; display: block; }
+.ico { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.toast { background: var(--mica); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--shadow); padding: 14px 16px 16px; max-width: 364px; }
+.toast-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.toast b { display: block; font-weight: 600; margin-bottom: 2px; }
+.toast-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.toast-actions .btn { justify-content: center; }
+
+/* voice */
+.voice { width: 100%; border-collapse: collapse; }
+.voice th, .voice td { text-align: left; padding: 10px 12px; border-top: 1px solid var(--stroke); vertical-align: top; }
+.voice th { font-size: 12px; color: var(--muted); font-weight: 600; border-top: 0; }
+.voice td:last-child { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--warn); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .seg button { transition: background-color 150ms cubic-bezier(0.25, 1, 0.5, 1); }
+}
+@media (max-width: 600px) { .type-row { grid-template-columns: 1fr; gap: 4px; } .donts, .tray-row { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="hull" viewBox="0 0 24 24">
+      <rect x="6" y="5" width="7" height="3.4" rx="1" fill="var(--mark-cargo)"/>
+      <rect x="6" y="9.6" width="12" height="3.4" rx="1" fill="currentColor"/>
+      <path d="M2.8 14.6h18.4l-2.6 4.6H5.4z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
+      <path d="M3 21.6q2.25-1.2 4.5 0t4.5 0t4.5 0t4.5 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+    </symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+    <symbol id="i-office" viewBox="0 0 24 24"><path d="M5 20V5.5A1.5 1.5 0 0 1 6.5 4h7A1.5 1.5 0 0 1 15 5.5V20M15 10h3.5a1.5 1.5 0 0 1 1.5 1.5V20M3 20h18M8.5 8h3M8.5 12h3M8.5 16h3"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.5h.01"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1><svg class="mark" width="32" height="32"><use href="#hull"/></svg>Ferry design system</h1>
+      <p>Quiet, native Windows 11, honest about state. The brand lives in the icon; the window borrows Windows' own accent, shown here with the amber fallback. Source of truth: <code>DESIGN.md</code>.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" data-t="" aria-pressed="true">System</button>
+      <button type="button" data-t="light" aria-pressed="false">Light</button>
+      <button type="button" data-t="dark" aria-pressed="false">Dark</button>
+    </div>
+  </header>
+
+  <section>
+    <h2>Brand</h2>
+    <p>The Hull: a ferry with cargo on deck. The amber block is the data on board.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>App icon, exported</h3>
+        <div class="icons">
+          <figure><img src="../assets/brand/ferry-512.png" width="128" height="128" alt="Ferry app icon"><figcaption class="cap">256</figcaption></figure>
+          <figure><img src="../assets/brand/ferry-512.png" width="48" height="48" alt=""><figcaption class="cap">48</figcaption></figure>
+          <figure><img src="../assets/brand/ferry-512.png" width="32" height="32" alt=""><figcaption class="cap">32</figcaption></figure>
+        </div>
+        <p class="cap" style="margin:16px 0 0">ferry.ico holds 16–256; at 24 px and below the water line drops out.</p>
+      </div>
+      <div class="card">
+        <h3>Wordmark and clear space</h3>
+        <div class="lockup"><svg class="mark" width="40" height="40"><use href="#hull"/></svg>Ferry</div>
+        <p class="cap" style="margin:10px 0 18px">Mirror one server to another by carrying the files on your laptop.</p>
+        <div class="clear"><svg class="mark" width="48" height="48"><use href="#hull"/></svg></div>
+        <p class="cap" style="margin:8px 0 0">Clear space: one cargo-block height on every side.</p>
+      </div>
+      <div class="card">
+        <h3>Don't</h3>
+        <div class="donts">
+          <figure><svg width="40" height="40" style="color:#2b7de9"><use href="#hull"/></svg><span class="cap">Recolor the hull</span></figure>
+          <figure><svg width="40" height="40" class="mark" style="filter:drop-shadow(0 3px 3px rgb(0 0 0/.5))"><use href="#hull"/></svg><span class="cap">Add effects</span></figure>
+          <figure style="background:var(--amber)"><svg width="40" height="40" class="mark"><use href="#hull"/></svg><span class="cap" style="color:#1f1306">Put it on amber</span></figure>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Tray, exported at 16 px, shown 1:1 and at 3×</h3>
+      <div class="tray-row" id="tray"></div>
+      <p class="cap" style="margin:12px 0 0">Amber only while data is on board (filling or unloading). Problems are red, never amber.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Color</h2>
+    <p>Neutrals carry a faint cool ink tint. Toggle the theme above; every pair that carries text passes WCAG AA.</p>
+    <div class="sw-grid" id="swatches"></div>
+    <div class="sw-grid" style="margin-top:12px">
+      <div class="sw"><i style="background:linear-gradient(160deg,var(--plate-hi),var(--plate) 55%,var(--plate-lo))"></i><div><b>Ink plate</b><code>brand only</code></div></div>
+      <div class="sw"><i style="background:var(--amber)"></i><div><b>Amber</b><code>#e69825 · brand only</code></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Type</h2>
+    <p>Segoe UI Variable. Display optical size from 20 px up. Changing numbers use tabular figures.</p>
+    <div class="card">
+      <div class="type-row"><span class="cap">Title · 28/36 · 600</span><span style="font:600 28px/36px var(--font-display);letter-spacing:-0.01em">Lake house is up to date</span></div>
+      <div class="type-row"><span class="cap">Subtitle · 20/28 · 600</span><span style="font:600 20px/28px var(--font-display)">Folders</span></div>
+      <div class="type-row"><span class="cap">Body strong · 14/20 · 600</span><span style="font-weight:600">Carrying <span class="tnum">182 GB</span> to Lake house</span></div>
+      <div class="type-row"><span class="cap">Body · 14/20 · 400</span><span>Ferry fills the laptop at Studio and empties it at Lake house.</span></div>
+      <div class="type-row"><span class="cap">Caption · 12/16 · 400</span><span class="cap tnum">Last trip 16/10/2026 08:42 · 3 files deleted at Lake house</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Shape and space</h2>
+    <p>4 px grid. Windows 11 corners. 1 px strokes; shadows only on things that float.</p>
+    <div class="grid">
+      <div class="card"><h3>Spacing</h3><div class="spaces" id="spaces"></div></div>
+      <div class="card"><h3>Radius</h3><div class="radii">
+        <div style="border-radius:4px"><span class="cap">4 controls</span></div>
+        <div style="border-radius:6px"><span class="cap">6 rows</span></div>
+        <div style="border-radius:8px"><span class="cap">8 cards</span></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Components</h2>
+    <p>The same pieces as the flyout and window mockups. One primary button per view.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>Buttons</h3>
+        <div class="row-btns">
+          <button class="btn primary">Start trip</button>
+          <button class="btn">Choose folders</button>
+          <button class="btn ghost"><svg class="ico"><use href="#i-pause"/></svg>Pause</button>
+          <button class="btn ghost icon" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></button>
+        </div>
+        <h3 style="margin-top:24px">Location pill</h3>
+        <span class="pill"><svg class="ico" style="width:14px;height:14px"><use href="#i-office"/></svg>At Studio</span>
+      </div>
+      <div class="card">
+        <h3>Cap meter</h3>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><b style="font-weight:600">Carrying <span class="tnum">182 GB</span></b><span class="cap tnum">of 250 GB</span></div>
+        <div class="bar" role="img" aria-label="182 of 250 GB on board, 30 GB to push, 20 GB planned"><i style="width:60%;background:var(--accent)"></i><i style="width:12%;background:var(--seg-2)"></i><i style="width:8%;background:var(--seg-3)"></i></div>
+        <div class="cap" style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap">
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--accent)"></i> On board</span>
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--seg-2)"></i> To push</span>
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--seg-3)"></i> Planned</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Folder rows</h3>
+        <div class="frow"><svg class="ico"><use href="#i-folder"/></svg><div class="grow"><b>Projects</b><div class="bar" style="margin-top:6px"><i style="width:64%;background:var(--accent)"></i></div></div><span class="cap tnum">64%</span></div>
+        <div class="frow"><svg class="ico"><use href="#i-folder"/></svg><div class="grow"><b>Photos</b><span class="cap">1.2 TB</span></div><span class="cap" style="color:var(--ok);display:flex;gap:4px;align-items:center"><svg class="ico"><use href="#i-check"/></svg>Up to date</span></div>
+        <div class="frow"><svg class="ico"><use href="#i-folder"/></svg><div class="grow"><b>Accounts</b><span class="cap" style="color:var(--warn)">2 files changed on both sides</span></div><svg class="ico" style="color:var(--warn)"><use href="#i-alert"/></svg></div>
+      </div>
+      <div class="card">
+        <h3>Toast, errors only</h3>
+        <div class="toast" role="status">
+          <div class="toast-head"><svg class="mark" width="16" height="16"><use href="#hull"/></svg><span>Ferry</span></div>
+          <b>Can't reach Lake house from here</b>
+          <span class="cap" style="font-size:14px;line-height:20px">Ferry will try again when you're on its network. Nothing was deleted.</span>
+          <div class="toast-actions"><button class="btn">Open Ferry</button><button class="btn">Dismiss</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Voice</h2>
+    <p>Plain, short, state first. Say where you are and what's left.</p>
+    <div class="card" style="padding:8px">
+      <table class="voice">
+        <thead><tr><th>Do</th><th>Don't</th></tr></thead>
+        <tbody>
+          <tr><td>Lake house is up to date.</td><td>All done! Your files are synced!</td></tr>
+          <tr><td>Carrying 182 GB. 40 GB left to fill.</td><td>Syncing in progress...</td></tr>
+          <tr><td>Can't reach Lake house from here; nothing was carried.</td><td>Error 0x80070035</td></tr>
+          <tr><td>Delete 3 files at Lake house? They were deleted at Studio.</td><td>Are you sure?</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+for (const b of document.querySelectorAll('.seg button')) b.onclick = () => {
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  b.dataset.t ? document.documentElement.dataset.theme = b.dataset.t : delete document.documentElement.dataset.theme;
+  paintSwatches();
+};
+
+const states = [['idle', 'Idle'], ['carrying', 'Carrying'], ['attention', 'Attention'], ['paused', 'Paused']];
+document.getElementById('tray').innerHTML = ['l', 'd'].map(t => states.map(([s, label]) => {
+  const src = `../assets/brand/tray-${s}-${t === 'l' ? 'light' : 'dark'}.ico`;
+  return `<div class="tray-cell ${t}"><span style="display:flex;gap:12px;align-items:center"><img src="${src}" width="16" height="16" alt=""><img src="${src}" width="48" height="48" alt=""></span>${label}, ${t === 'l' ? 'light' : 'dark'} taskbar</div>`;
+}).join('')).join('');
+
+document.getElementById('spaces').innerHTML = [4, 8, 12, 16, 24].map(n => `<div><i style="width:${n}px;height:${n}px"></i><span class="cap">${n}</span></div>`).join('');
+
+const tokens = [['mica', 'Window'], ['layer', 'Cards, rows'], ['subtle', 'Tracks, hover'], ['stroke', 'Borders'], ['ink', 'Text'], ['muted', 'Secondary text'],
+  ['ok', 'Up to date'], ['warn', 'Needs attention'], ['accent', 'Windows accent (fallback)'], ['accent-soft', 'Pill, soft fills']];
+function paintSwatches() {
+  const cs = getComputedStyle(document.documentElement);
+  document.getElementById('swatches').innerHTML = tokens.map(([t, role]) =>
+    `<div class="sw"><i style="background:var(--${t})"></i><div><b>${t}</b><code>${cs.getPropertyValue('--' + t).trim().startsWith('#') ? cs.getPropertyValue('--' + t).trim() : 'mixed'} · ${role}</code></div></div>`).join('');
+}
+paintSwatches();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintSwatches);
+</script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+import { Theme, Focus } from "theme.slint";
+export { Theme, Focus }
+
+// kind: 0 text detail, 1 progress bar, 2 up to date, 3 needs attention
+export struct Row { name: string, detail: string, right: string, percent: float, kind: int, label: string, paths: string }
+// start and width are fractions of the cap
+export struct Seg { start: float, width: float, tone: int }
+
+export component Icon inherits Text {
+    font-family: Theme.icons;
+    font-size: 16px;
+    width: 16px;
+    horizontal-alignment: center;
+    vertical-alignment: center;
+    // Private-use glyphs read as "?"; the text next to them says it.
+    accessible-role: none;
+    accessible-label: "";
+}
+
+// The Hull, cropped to its drawn bounds so `height` is the mark's visual height. Hull in ink, cargo in
+// the brand amber (DESIGN.md).
+export component Mark inherits Rectangle {
+    width: self.height * 14 / 11.5;
+    accessible-role: none;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-x: 1;
+        viewbox-y: 2;
+        viewbox-width: 14;
+        viewbox-height: 11.5;
+        commands: "M4 6h8v3H4z M1 10h14l-2 3.5H3z";
+        fill: Theme.ink;
+    }
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-x: 1;
+        viewbox-y: 2;
+        viewbox-width: 14;
+        viewbox-height: 11.5;
+        commands: "M4 2h5v3H4z";
+        fill: Theme.hc ? Theme.accent : Theme.dark ? #e69825 : #c46d00;
+    }
+}
+
+// The wordmark lockup (DESIGN.md): Display Semibold at -2% tracking, the mark at 1.2x the cap height
+// to its left, centered on the capitals rather than on the text box.
+export component Wordmark inherits Rectangle {
+    in property <string> text: "Ferry";
+    in property <length> font-size: 16px;
+    // Segoe UI Variable Display: ascent 1.079em, cap height 0.7em.
+    property <length> cap: root.font-size * 0.7;
+    width: label.x + label.preferred-width;
+    height: label.preferred-height;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    mark := Mark {
+        x: 0;
+        height: root.cap * 1.2;
+        y: root.font-size * 1.079 - root.cap / 2 - self.height / 2;
+    }
+    label := Text {
+        // Clear space: a little more than one cargo block.
+        x: mark.width + mark.height * 0.4;
+        text: root.text;
+        font-family: Theme.font-display;
+        font-size: root.font-size;
+        font-weight: 600;
+        letter-spacing: root.font-size * -0.02;
+        color: Theme.ink;
+        accessible-role: none;
+    }
+}
+
+export component Btn inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <bool> primary;
+    in property <bool> ghost;
+    in property <string> label: text;
+    callback clicked;
+
+    height: 32px;
+    border-radius: 4px;
+    border-width: ghost || primary ? 0 : 1px;
+    border-color: Theme.stroke;
+    background: primary ? (touch.has-hover ? Theme.accent.brighter(0.06) : Theme.accent)
+        : ghost ? (touch.has-hover ? Theme.subtle : transparent)
+        : (touch.has-hover ? Theme.layer-2 : Theme.layer);
+    accessible-role: button;
+    accessible-label: label;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: fs;
+
+    fs := FocusScope {
+        focus-gained(r) => { Focus.gained(r); }
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return { root.clicked(); return accept; }
+            reject
+        }
+        // Inside the FocusScope so the first click reaches it rather than only moving focus.
+        touch := TouchArea { clicked => { root.clicked(); } }
+    }
+    Rectangle {
+        visible: fs.has-focus && Focus.keyboard;
+        x: -3px;
+        y: -3px;
+        width: parent.width + 6px;
+        height: parent.height + 6px;
+        border-radius: 6px;
+        border-width: 2px;
+        border-color: Theme.ink;
+    }
+    HorizontalLayout {
+        padding-left: root.text == "" ? 8px : 12px;
+        padding-right: self.padding-left;
+        spacing: 8px;
+        alignment: center;
+        if root.icon != "": Icon { text: root.icon; color: root.primary ? Theme.accent-ink : Theme.ink; }
+        if root.text != "": Text {
+            text: root.text;
+            accessible-role: none;
+            vertical-alignment: center;
+            color: root.primary ? Theme.accent-ink : Theme.ink;
+            font-weight: root.primary ? 600 : 400;
+        }
+    }
+}
+
+export component Flyout inherits Window {
+    in property <bool> running: true;
+    in property <string> location;
+    in property <string> location-icon;
+    in property <string> status;
+    in property <string> detail;
+    // A trusted VPN stands in for the LAN right now.
+    in property <string> trust-note;
+    in property <[Seg]> segments;
+    in property <bool> show-meter;
+    // Share of the cap carried, 0 to 100, for screen readers.
+    in property <float> meter-value;
+    in property <[string]> attention;
+    in property <[Row]> rows;
+    in property <string> trips;
+    in property <bool> paused;
+    callback settings();
+    callback toggle-pause();
+    callback start-engine();
+    callback dismiss();
+
+    title: "Ferry";
+    no-frame: true;
+    always-on-top: true;
+    width: 380px;
+    height: body.preferred-height;
+    background: Theme.mica;
+    default-font-family: Theme.font;
+    default-font-size: 14px;
+    forward-focus: keys;
+
+    keys := FocusScope {
+        key-pressed(e) => {
+            if e.text == Key.Escape { root.dismiss(); return accept; }
+            reject
+        }
+
+        body := VerticalLayout {
+            // Header
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 14px;
+                padding-bottom: 6px;
+                spacing: 10px;
+                VerticalLayout { alignment: center; Wordmark { font-size: 16px; } }
+                Rectangle { horizontal-stretch: 1; }
+                if root.running && root.location != "": Rectangle {
+                    height: 24px;
+                    // A long place name elides rather than crowding the header.
+                    max-width: 200px;
+                    border-radius: 12px;
+                    background: Theme.accent-soft;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 6px;
+                        Icon { text: root.location-icon; font-size: 14px; width: 14px; color: Theme.ink; }
+                        Text { text: root.location; font-size: 12px; font-weight: 600; color: Theme.ink; vertical-alignment: center; overflow: elide; }
+                    }
+                }
+                Btn { ghost: true; icon: "\u{E713}"; label: "Settings"; width: 32px; clicked => { root.settings(); } }
+            }
+
+            // Status
+            VerticalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 10px;
+                padding-bottom: 16px;
+                spacing: 2px;
+                Text {
+                    text: root.status;
+                    accessible-role: text;
+                    accessible-label: root.status;
+                    font-family: Theme.font-display;
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: Theme.ink;
+                    wrap: word-wrap;
+                }
+                if root.detail != "": Text { text: root.detail; color: Theme.muted; wrap: word-wrap; }
+                if root.trust-note != "": Text { text: root.trust-note; font-size: 12px; color: Theme.muted; wrap: word-wrap; }
+                for a in root.attention: Text { text: a; color: Theme.warn; wrap: word-wrap; }
+                if root.show-meter: VerticalLayout {
+                    padding-top: 10px;
+                    Rectangle {
+                        height: 8px;
+                        border-radius: 4px;
+                        background: Theme.subtle;
+                        border-width: Theme.hc ? 1px : 0;
+                        border-color: Theme.stroke;
+                        clip: true;
+                        accessible-role: progress-indicator;
+                        accessible-label: "Laptop space used";
+                        accessible-value: round(root.meter-value);
+                        accessible-value-minimum: 0;
+                        accessible-value-maximum: 100;
+                        for s in root.segments: Rectangle {
+                            x: parent.width * s.start;
+                            width: parent.width * s.width;
+                            height: parent.height;
+                            background: s.tone == 0 ? Theme.accent : s.tone == 1 ? Theme.seg-2 : Theme.seg-3;
+                            // 1 px gap in the layer color, so folders are told apart by more than tint.
+                            Rectangle { x: parent.width - 1px; width: 1px; background: Theme.layer; }
+                        }
+                    }
+                }
+            }
+
+            // Folders
+            if root.running && root.rows.length > 0: Rectangle {
+                background: Theme.layer-2;
+                border-width: 1px;
+                border-color: Theme.stroke;
+                accessible-role: list;
+                accessible-label: "Folders";
+                VerticalLayout {
+                    padding: 6px;
+                    for r in root.rows: Rectangle {
+                        accessible-role: list-item;
+                        accessible-label: r.label;
+                        HorizontalLayout {
+                            padding: 10px;
+                            spacing: 12px;
+                            Icon { text: "\u{E8B7}"; color: Theme.ink; }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                Text { text: r.name; color: Theme.ink; overflow: elide; }
+                                if r.kind == 1: VerticalLayout {
+                                    padding-top: 6px;
+                                    Rectangle {
+                                        height: 4px;
+                                        border-radius: 2px;
+                                        background: Theme.subtle;
+                                        border-width: Theme.hc ? 1px : 0;
+                                        border-color: Theme.stroke;
+                                        clip: true;
+                                        Rectangle { x: 0; width: parent.width * r.percent; height: parent.height; border-radius: 2px; background: Theme.accent; }
+                                    }
+                                }
+                                if r.kind != 1: Text {
+                                    text: r.detail;
+                                    font-size: 12px;
+                                    color: r.kind == 3 ? Theme.warn : Theme.muted;
+                                    overflow: elide;
+                                }
+                            }
+                            if r.kind == 2: Icon { text: "\u{E73E}"; color: Theme.ok; }
+                            if r.kind != 2 && r.right != "": Text {
+                                text: r.right;
+                                font-size: 12px;
+                                color: Theme.muted;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Footer
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                spacing: 8px;
+                Text {
+                    text: root.trips;
+                    horizontal-stretch: 1;
+                    font-size: 12px;
+                    color: Theme.muted;
+                    vertical-alignment: center;
+                }
+                if root.running: Btn {
+                    icon: root.paused ? "\u{E768}" : "\u{E769}";
+                    text: root.paused ? "Resume" : "Pause";
+                    clicked => { root.toggle-pause(); }
+                }
+                if !root.running: Btn {
+                    primary: true;
+                    text: "Start Ferry";
+                    clicked => { root.start-engine(); }
+                }
+            }
+        }
+    }
+}

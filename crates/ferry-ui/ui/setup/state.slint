@@ -1,0 +1,152 @@
+// Everything the setup window shows and every action it can take. Rust fills it and handles the callbacks.
+import { Row, Seg } from "../flyout.slint";
+
+// kind: 0 plain, 1 done, 2 problem, 3 working
+export struct Note { text: string, kind: int }
+export struct PairRow { id: string, paths: string, enabled: bool, allow-empty: bool }
+export struct Held { id: string, button: string, note: Note }
+export struct Legend { name: string, size: string, tone: int }
+export struct Line { time: string, text: string }
+// A learned network. state: 0 idle, 1 checking the path, 2 asking to trust, 3 trust not available here
+export struct NetRow { name: string, detail: string, trusted: bool, state: int, hint: string }
+
+export global S {
+    // 0 Status, 1 Folders, 2 Locations, 3 Activity, 4 Settings
+    in property <int> page;
+    callback go(int);
+    in property <bool> first-run;
+    in property <string> computer;
+    // This build, for the sidebar foot and Updates.
+    in property <string> version;
+    // config.toml couldn't be read
+    in property <Note> load-note;
+
+    // Status
+    in property <bool> running: true;
+    in property <string> place;
+    in property <string> place-icon;
+    in property <string> status;
+    in property <string> detail;
+    in property <[string]> attention;
+    in property <bool> paused;
+    in property <bool> show-meter;
+    in property <float> meter-value;
+    in property <string> carried;
+    in property <string> cap;
+    in property <string> trips;
+    in property <[Seg]> segments;
+    in property <[Legend]> legend;
+    in property <[Row]> rows;
+    callback toggle-pause();
+    callback start-engine();
+
+    // Folders
+    in property <[PairRow]> pairs;
+    // How many of `pairs` are switched on, for the Folders tabs.
+    in property <int> pairs-on;
+    // Folders tab: 0 all, 1 carrying, 2 off
+    in-out property <int> folder-filter;
+    in property <bool> editing;
+    in property <bool> adding;
+    in-out property <string> f-source;
+    in-out property <string> f-destination;
+    in-out property <bool> f-allow-empty;
+    in property <string> f-id;
+    in property <Note> f-note;
+    in property <Note> folders-note;
+    pure callback preview-id(string) -> string;
+    callback add-pair();
+    callback edit-pair(int);
+    callback save-pair();
+    callback cancel-pair();
+    callback remove-pair();
+    // index, -1 up or +1 down
+    callback move-pair(int, int);
+    callback toggle-pair(int);
+    // Set by Move up/down so focus can follow the moved folder.
+    in-out property <int> moved-to: -1;
+    in-out property <bool> moved-up;
+    in-out property <int> moved-seq;
+
+    // What the user calls each side, or "Source" / "Destination", for copy that names them.
+    in property <string> source-place: "Source";
+    in property <string> destination-place: "Destination";
+    // The same in capitals, for section labels (Slint has no text-transform).
+    in property <string> destination-place-upper: "DESTINATION";
+
+    // Locations
+    // The server tab: 0 source, 1 destination
+    in-out property <int> locations-side;
+    // The Name fields as typed.
+    in-out property <string> source-name;
+    in-out property <string> destination-name;
+    in-out property <string> source-lan;
+    in-out property <string> source-ts;
+    in-out property <string> source-user;
+    in-out property <string> source-pass;
+    in property <Note> source-note;
+    in property <[NetRow]> source-nets;
+    // How copies would reach the server from here, in plain words.
+    in property <Note> source-path;
+    in property <int> source-asking: -1;
+    in-out property <string> destination-lan;
+    in-out property <string> destination-ts;
+    in-out property <string> destination-user;
+    in-out property <string> destination-pass;
+    in property <Note> destination-note;
+    in property <[NetRow]> destination-nets;
+    in property <Note> destination-path;
+    in property <int> destination-asking: -1;
+    in property <Note> remember-note;
+    // side: 0 source, 1 destination
+    callback save-server(int);
+    callback test-server(int);
+    callback remember(int);
+    callback forget(int, int);
+    // side, network row: flip "Trust this VPN for copies", confirm turning it on, or cancel that.
+    callback trust(int, int);
+    callback trust-confirm(int, int);
+    callback trust-cancel(int, int);
+
+    // Activity
+    // 0 Waiting for your OK, 1 Recent
+    in-out property <int> activity-tab;
+    in property <[Held]> held;
+    in property <[Line]> lines;
+    in property <Note> activity-note;
+    callback confirm(string);
+    callback refresh-activity();
+
+    // Settings
+    in-out property <string> cap-gb;
+    in-out property <string> cargo-dir;
+    in-out property <string> free-gb;
+    in-out property <bool> battery;
+    in-out property <bool> autostart;
+    in-out property <bool> notify;
+    in property <string> cargo-default;
+    in property <string> thresholds;
+    in property <string> thresholds-why;
+    in property <Note> settings-note;
+    in-out property <bool> auto-update;
+    // 0 not checked, 1 up to date, 2 available, 3 installing, 4 available but this copy is portable
+    in property <int> update-state;
+    in property <string> update-version;
+    in property <Note> update-note;
+    callback check-update();
+    callback install-update();
+    callback save-settings();
+    callback choose-cargo();
+
+    // First run: 0 source, 1 destination, 2 this network, 3 first folder, 4 closing note
+    in property <int> step;
+    in property <string> closing;
+    // Neither server has a remote address: ask whether destination starts empty (spec 4.4).
+    in property <bool> sneakernet;
+    in property <bool> destination-empty;
+    in property <Note> destination-empty-note;
+    callback set-destination-empty(bool);
+    callback next();
+    callback back();
+    callback skip();
+}

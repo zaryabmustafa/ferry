@@ -1,0 +1,530 @@
+// Setup-window controls, drawn with the flyout's tokens so they follow the Windows theme and high contrast.
+import { Theme, Focus } from "../theme.slint";
+import { Icon, Btn } from "../flyout.slint";
+import { Note } from "state.slint";
+
+// The 2 px ink focus ring, 3 px outside its parent (DESIGN.md: Button). Users set width and height
+// to the parent's + 6px.
+export component Ring inherits Rectangle {
+    x: -3px;
+    y: -3px;
+    border-radius: 6px;
+    border-width: 2px;
+    border-color: Theme.ink;
+}
+
+export component PageTitle inherits Text {
+    font-family: Theme.font-display;
+    font-size: 28px;
+    font-weight: 600;
+    color: Theme.ink;
+    accessible-role: text;
+    accessible-label: self.text;
+}
+
+export component GroupLabel inherits Text {
+    font-weight: 600;
+    color: Theme.ink;
+    accessible-role: text;
+    accessible-label: self.text;
+}
+
+export component Caption inherits Text {
+    font-size: 12px;
+    color: Theme.muted;
+    wrap: word-wrap;
+}
+
+// A labelled one-line text box. Scrolls its text so the cursor stays in view.
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    // For screen readers when there is no visible label.
+    in property <string> name: self.label;
+    in property <string> hint;
+    // Off when the hint is already printed beside the field; screen readers still get it.
+    in property <bool> show-hint: true;
+    in property <string> placeholder;
+    in property <bool> password;
+    in-out property <string> text <=> input.text;
+    callback accepted();
+    forward-focus: input;
+
+    spacing: 4px;
+    alignment: start;
+    horizontal-stretch: 1;
+    // Side-by-side fields split the row evenly: no part of a field asks for width of its own, so
+    // neither the label, the hint nor the typed text can push one column wider than its neighbor.
+    // Min widths too: the layout grows items from their minimum, so a longer label would win.
+    min-width: 0px;
+    preferred-width: 0px;
+    if root.label != "": Text { text: root.label; color: Theme.ink; accessible-role: none; min-width: 0px; preferred-width: 0px; }
+    Rectangle {
+        min-width: 0px;
+        preferred-width: 0px;
+        height: 32px;
+        border-radius: 4px;
+        background: Theme.layer;
+        border-width: 1px;
+        border-color: Theme.stroke;
+        // Windows 11 text box focus: an accent line along the bottom, not a ring.
+        if input.has-focus: Rectangle {
+            x: 1px;
+            y: parent.height - 2px;
+            width: parent.width - 2px;
+            height: 2px;
+            background: Theme.accent;
+        }
+        Rectangle {
+            x: 10px;
+            width: parent.width - 20px;
+            clip: true;
+            if root.text == "": Text {
+                x: 0;
+                width: 100%;
+                height: 100%;
+                text: root.placeholder;
+                color: Theme.muted;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+            input := TextInput {
+                property <length> scroll;
+                x: min(0px, max(parent.width - self.width - 1px, self.scroll));
+                width: max(parent.width - 1px, self.preferred-width);
+                height: 100%;
+                vertical-alignment: center;
+                single-line: true;
+                color: Theme.ink;
+                selection-background-color: Theme.accent;
+                selection-foreground-color: Theme.accent-ink;
+                input-type: root.password ? InputType.password : InputType.text;
+                accessible-label: root.name;
+                accessible-description: root.hint;
+                // No password in the accessible value. (AccessKit reads a text input's Value from its
+                // text runs, which Slint already masks, so UI Automation shows only the bullets.)
+                accessible-value: root.password ? "" : self.text;
+                cursor-position-changed(pos) => {
+                    if pos.x + self.scroll < 0px {
+                        self.scroll = -pos.x;
+                    } else if pos.x + self.scroll > parent.width - 1px {
+                        self.scroll = parent.width - 1px - pos.x;
+                    }
+                }
+                accepted => { root.accepted(); }
+            }
+        }
+    }
+    if root.hint != "" && root.show-hint: Caption { text: root.hint; accessible-role: none; min-width: 0px; preferred-width: 0px; }
+}
+
+// Windows-style switch with "On"/"Off" beside it. The owner flips `checked` in `toggled`.
+export component Toggle inherits HorizontalLayout {
+    in property <string> label;
+    in property <bool> checked;
+    in property <bool> enabled: true;
+    // Read to screen readers with the switch, e.g. why it can't be turned on here.
+    in property <string> description;
+    callback toggled();
+
+    spacing: 12px;
+    alignment: end;
+    Text { text: root.checked ? "On" : "Off"; color: root.enabled ? Theme.ink : Theme.muted; vertical-alignment: center; accessible-role: none; }
+    VerticalLayout {
+        alignment: center;
+        sw := Rectangle {
+            width: 40px;
+            height: 20px;
+            border-radius: 10px;
+            background: !root.enabled ? Theme.subtle : root.checked ? (touch.has-hover ? Theme.accent.brighter(0.06) : Theme.accent) : (touch.has-hover ? Theme.subtle : Theme.layer);
+            border-width: root.checked && !Theme.hc ? 0 : 1px;
+            border-color: Theme.hc ? Theme.stroke : Theme.muted;
+            accessible-role: switch;
+            accessible-checkable: true;
+            accessible-checked: root.checked;
+            accessible-label: root.label;
+            accessible-enabled: root.enabled;
+            accessible-description: root.description;
+            accessible-action-default => { if root.enabled { root.toggled(); } }
+
+            fs := FocusScope {
+                enabled: root.enabled;
+                focus-gained(r) => { Focus.gained(r); }
+                key-pressed(e) => {
+                    if root.enabled && (e.text == " " || e.text == Key.Return) { root.toggled(); return accept; }
+                    reject
+                }
+                touch := TouchArea { enabled: root.enabled; clicked => { root.toggled(); } }
+            }
+            Rectangle {
+                width: 12px;
+                height: 12px;
+                x: root.checked ? parent.width - 16px : 4px;
+                y: 4px;
+                border-radius: 6px;
+                background: root.checked && root.enabled ? Theme.accent-ink : Theme.muted;
+            }
+            if fs.has-focus && Focus.keyboard: Ring { width: parent.width + 6px; height: parent.height + 6px; border-radius: 13px; }
+        }
+    }
+}
+
+// A Settings-app row: title and description on the left, controls (children) on the right.
+export component SettingRow inherits Rectangle {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> body;
+
+    background: Theme.layer;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: Theme.stroke;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 16px;
+        if root.icon != "": Icon { text: root.icon; color: Theme.ink; }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+            Text { text: root.title; color: Theme.ink; wrap: word-wrap; }
+            if root.body != "": Caption { text: root.body; }
+        }
+        @children
+    }
+}
+
+export component Card inherits Rectangle {
+    background: Theme.layer;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Theme.stroke;
+}
+
+export component NavItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> text;
+    in property <string> count;
+    in property <bool> current;
+    callback clicked();
+
+    height: 36px;
+    border-radius: 4px;
+    background: root.current ? Theme.layer : touch.has-hover ? Theme.subtle : transparent;
+    border-width: root.current && Theme.hc ? 1px : 0;
+    border-color: Theme.stroke;
+    accessible-role: tab;
+    accessible-label: root.count != "" ? root.text + ", " + root.count : root.text;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.current;
+    accessible-action-default => { root.clicked(); }
+
+    fs := FocusScope {
+        focus-gained(r) => { Focus.gained(r); }
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return { root.clicked(); return accept; }
+            reject
+        }
+        touch := TouchArea { clicked => { root.clicked(); } }
+    }
+    if root.current: Rectangle {
+        x: 0;
+        y: 10px;
+        width: 3px;
+        height: parent.height - 20px;
+        border-radius: 2px;
+        background: Theme.accent;
+    }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 14px;
+        Icon { text: root.icon; color: Theme.ink; }
+        Text { text: root.text; color: Theme.ink; vertical-alignment: center; horizontal-stretch: 1; accessible-role: none; }
+        if root.count != "": Text { text: root.count; font-size: 12px; color: Theme.muted; vertical-alignment: center; accessible-role: none; }
+    }
+    if fs.has-focus && Focus.keyboard: Ring { width: parent.width + 6px; height: parent.height + 6px; }
+}
+
+// A result line under a form. Problems get a red-bordered box so they can't be missed.
+export component NoteView inherits Rectangle {
+    in property <Note> note;
+
+    border-radius: 6px;
+    border-width: root.note.kind == 2 ? 1px : 0;
+    border-color: Theme.warn;
+    background: root.note.kind == 2 ? Theme.layer : transparent;
+    accessible-role: text;
+    accessible-label: root.note.text;
+    HorizontalLayout {
+        padding: root.note.kind == 2 ? 12px : 0;
+        spacing: 10px;
+        if root.note.kind == 1 || root.note.kind == 2: Icon {
+            y: 2px;
+            height: 16px;
+            text: root.note.kind == 1 ? "\u{E73E}" : "\u{E7BA}";
+            color: root.note.kind == 1 ? Theme.ok : Theme.warn;
+        }
+        Text {
+            text: root.note.text;
+            horizontal-stretch: 1;
+            color: root.note.kind == 0 || root.note.kind == 3 ? Theme.muted : Theme.ink;
+            wrap: word-wrap;
+            accessible-role: none;
+        }
+    }
+}
+
+// ---------- Unity Hub-style structure (mockups/hub-structure.html) ----------
+
+// The sidebar and the page each sit on one of these, on the window's mica.
+export component Panel inherits Rectangle {
+    background: Theme.layer-2;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Theme.stroke;
+    VerticalLayout { @children }
+}
+
+// Small upper-case label over a section; children sit at its right as the section's action.
+// Slint has no text-transform, so callers pass the text in capitals.
+export component SectionLabel inherits HorizontalLayout {
+    in property <string> text;
+    padding-top: 12px;
+    padding-bottom: 0px;
+    spacing: 8px;
+    min-height: 32px;
+    Text {
+        text: root.text;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.72px;
+        color: Theme.muted;
+        horizontal-stretch: 1;
+        vertical-alignment: center;
+        accessible-role: AccessibleRole.text;
+        accessible-label: self.text;
+    }
+    @children
+}
+
+// tone: 0 plain, 1 ok, 2 warn, 3 accent, 4 muted
+export component Chip inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <int> tone;
+    property <color> fg: root.tone == 1 ? Theme.ok : root.tone == 2 ? Theme.warn : root.tone == 4 ? Theme.muted : Theme.ink;
+    height: 22px;
+    border-radius: 4px;
+    border-width: root.tone == 3 ? 0 : 1px;
+    border-color: root.tone == 1 ? Theme.ok.with-alpha(0.4) : root.tone == 2 ? Theme.warn.with-alpha(0.45) : Theme.stroke;
+    background: root.tone == 1 ? Theme.ok.mix(Theme.layer, 0.12) : root.tone == 2 ? Theme.warn.mix(Theme.layer, 0.12) : root.tone == 3 ? Theme.accent-soft : transparent;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 6px;
+        if root.icon != "": Icon { text: root.icon; font-size: 12px; width: 12px; color: root.fg; }
+        Text {
+            text: root.text;
+            font-size: 12px;
+            font-weight: root.tone == 3 ? 600 : 400;
+            color: root.fg;
+            vertical-alignment: center;
+            wrap: no-wrap;
+            accessible-role: none;
+        }
+    }
+}
+
+// One folder, network or held delete.
+export component ItemCard inherits Rectangle {
+    background: Theme.layer;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Theme.stroke;
+}
+
+export struct MenuItem { text: string, icon: string, enabled: bool, danger: bool, separator-before: bool }
+
+// One menu entry. The menu owns keyboard focus; `current` is the entry the arrow keys are on.
+component MenuRow inherits Rectangle {
+    in property <MenuItem> item;
+    in property <bool> current;
+    property <color> fg: !root.item.enabled ? Theme.muted : root.item.danger ? Theme.warn : Theme.ink;
+    callback clicked();
+    height: 32px;
+    border-radius: 4px;
+    background: (touch.has-hover || root.current) && root.item.enabled ? Theme.subtle : transparent;
+    accessible-role: button;
+    accessible-label: root.item.text;
+    accessible-enabled: root.item.enabled;
+    accessible-action-default => { if root.item.enabled { root.clicked(); } }
+    touch := TouchArea { enabled: root.item.enabled; clicked => { root.clicked(); } }
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 12px;
+        spacing: 12px;
+        Icon { text: root.item.icon; color: root.fg; }
+        Text { text: root.item.text; color: root.fg; vertical-alignment: center; wrap: no-wrap; accessible-role: none; }
+    }
+    if root.current && Focus.keyboard: Rectangle { border-radius: 4px; border-width: 2px; border-color: Theme.ink; }
+}
+
+// "Manage" button opening a menu of an item's less frequent actions. Keyboard: Space or Enter
+// opens it on the first available entry; Up/Down move, Enter or Space picks, Esc or Tab closes.
+export component Manage inherits Rectangle {
+    in property <[MenuItem]> items;
+    // For screen readers: "Manage projects".
+    in property <string> label: "Manage";
+    callback activated(int);
+    forward-focus: btn;
+    width: btn.preferred-width;
+    height: 32px;
+    // The next available entry from `i` in direction `d` (+1/-1), or `i` when there is none.
+    // Menus here have at most four entries, so three steps reach every one.
+    pure function step(i: int, d: int) -> int {
+        if i + d >= 0 && i + d < root.items.length && root.items[i + d].enabled { return i + d; }
+        if i + 2 * d >= 0 && i + 2 * d < root.items.length && root.items[i + 2 * d].enabled { return i + 2 * d; }
+        if i + 3 * d >= 0 && i + 3 * d < root.items.length && root.items[i + 3 * d].enabled { return i + 3 * d; }
+        return i;
+    }
+    btn := Btn {
+        width: self.preferred-width;
+        icon: "\u{E713}";
+        text: "Manage";
+        label: root.label;
+        clicked => { menu.show(); }
+    }
+    menu := PopupWindow {
+        x: root.width - 224px;
+        y: root.height + 4px;
+        width: 224px;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+        Rectangle {
+            background: Theme.layer;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: Theme.stroke;
+            drop-shadow-blur: 24px;
+            drop-shadow-offset-y: 8px;
+            drop-shadow-color: #00000033;
+        }
+        keys := FocusScope {
+            property <int> cur: root.step(-1, 1);
+            init => { self.focus(); }
+            key-pressed(e) => {
+                if e.text == Key.DownArrow { self.cur = root.step(self.cur, 1); Focus.keyboard = true; return accept; }
+                if e.text == Key.UpArrow { self.cur = root.step(self.cur, -1); Focus.keyboard = true; return accept; }
+                if e.text == Key.Return || e.text == " " {
+                    if self.cur >= 0 && self.cur < root.items.length && root.items[self.cur].enabled {
+                        menu.close();
+                        root.activated(self.cur);
+                    }
+                    return accept;
+                }
+                if e.text == Key.Escape || e.text == Key.Tab || e.text == Key.Backtab { menu.close(); btn.focus(); return accept; }
+                accept
+            }
+            VerticalLayout {
+                padding: 4px;
+                accessible-role: list;
+                accessible-label: root.label;
+                for it[i] in root.items: VerticalLayout {
+                    if it.separator-before: Rectangle { height: 9px; Rectangle { height: 1px; background: Theme.stroke; } }
+                    MenuRow {
+                        item: it;
+                        current: keys.cur == i;
+                        clicked => { menu.close(); root.activated(i); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export struct TabItem { text: string, role: string, badge: string, problem: bool }
+
+// A page's tab (WinUI SelectorBar): its text, a role or count beside it, an accent line under the
+// current one.
+export component Tab inherits Rectangle {
+    in property <TabItem> item;
+    in property <bool> current;
+    callback clicked();
+    border-radius: 4px;
+    background: touch.has-hover && !root.current ? Theme.subtle : transparent;
+    accessible-role: tab;
+    accessible-label: root.item.text + (root.item.role != "" ? ", " + root.item.role : "") + (root.item.badge != "" ? ", " + root.item.badge : "") + (root.item.problem ? ", needs attention" : "");
+    accessible-item-selectable: true;
+    accessible-item-selected: root.current;
+    accessible-action-default => { root.clicked(); }
+    fs := FocusScope {
+        focus-gained(r) => { Focus.gained(r); }
+        key-pressed(e) => {
+            if e.text == " " || e.text == Key.Return { root.clicked(); return accept; }
+            reject
+        }
+        touch := TouchArea { clicked => { root.clicked(); } }
+    }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 10px;
+        padding-bottom: 12px;
+        spacing: 8px;
+        Text { text: root.item.text; color: root.current ? Theme.ink : Theme.muted; font-weight: root.current ? 600 : 400; vertical-alignment: center; accessible-role: none; }
+        if root.item.role != "": Text { text: root.item.role; font-size: 12px; color: Theme.muted; vertical-alignment: center; accessible-role: none; }
+        if root.item.badge != "": VerticalLayout {
+            alignment: center;
+            Rectangle {
+                height: 18px;
+                min-width: 20px;
+                border-radius: 9px;
+                background: Theme.warn;
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    Text { text: root.item.badge; font-size: 11px; font-weight: 700; color: Theme.layer; horizontal-alignment: center; vertical-alignment: center; accessible-role: none; }
+                }
+            }
+        }
+        if root.item.problem: Icon { text: "\u{E7BA}"; font-size: 12px; width: 12px; color: Theme.warn; }
+    }
+    if root.current: Rectangle {
+        x: 14px;
+        y: parent.height - 3px;
+        width: parent.width - 28px;
+        height: 3px;
+        border-radius: 1.5px;
+        background: Theme.accent;
+    }
+    if fs.has-focus && Focus.keyboard: Ring { width: parent.width + 6px; height: parent.height + 6px; }
+}
+
+// A divided row inside a card: title and help on the left, controls (children) on the right.
+export component CardRow inherits Rectangle {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> body;
+    in property <bool> first: true;
+    if !root.first: Rectangle { y: 0; height: 1px; background: Theme.stroke; }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 16px;
+        if root.icon != "": Icon { text: root.icon; color: Theme.ink; }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+            Text { text: root.title; color: Theme.ink; wrap: word-wrap; }
+            if root.body != "": Caption { text: root.body; }
+        }
+        @children
+    }
+}

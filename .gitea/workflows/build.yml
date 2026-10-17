@@ -1,0 +1,259 @@
+name: Build
+
+# lint ──┐
+#        ├─> release (tags vX.Y.Z only): Gitea release with installer, zip, signed checksums
+# build ─> package (installer + portable zip, every run)
+#
+# There is no Windows runner, so both programs are cross-compiled on Linux with MinGW
+# (x86_64-pc-windows-gnu). The Rust toolchain is pinned in rust-toolchain.toml; it and the Cargo
+# registry/target directories are cached per job, so warm runs only rebuild what changed.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ferry-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TARGET: x86_64-pc-windows-gnu
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: '0'
+  # Flaky TLS to Rust's CDN on this runner: fail fast and retry (see .gitea/scripts/rust.sh).
+  CARGO_NET_RETRY: '20'
+  CARGO_HTTP_TIMEOUT: '20'
+  RUSTUP_USE_CURL: '1'
+  RUSTUP_MAX_RETRIES: '10'
+  # Packages for cross-compiling: the MinGW C toolchain (linker) and binutils (windres for icons).
+  MINGW_PACKAGES: gcc-mingw-w64-x86-64-win32 binutils-mingw-w64-x86-64
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare the runner
+        run: bash .gitea/scripts/prepare.sh $MINGW_PACKAGES
+
+      - name: Restore the Rust toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.rustup
+          key: rustup-${{ hashFiles('rust-toolchain.toml') }}
+
+      - name: Restore Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-lint-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: cargo-lint-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Install Rust and fetch crates
+        run: bash .gitea/scripts/rust.sh
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets --target "$TARGET" -- -D warnings
+
+      - name: Build the tests for the shipped target
+        # The tests need Windows (Credential Manager, named pipes, NTFS share modes and ACLs), and
+        # this Linux runner can only build them. They link here against the same MinGW toolchain as
+        # the release, so a test that no longer compiles fails the build. Run them on Windows
+        # (`cargo test --workspace`, or a Windows act_runner) before tagging a release.
+        run: cargo test --locked --workspace --target "$TARGET" --no-run
+
+      - name: Keep the engine lean
+        run: |
+          # The windows (Slint) are linked into ferry.exe but only run in their own process. The
+          # engine logic in ferry-core stays free of UI toolkits, and nothing pulls in an async runtime.
+          if cargo tree --locked -p ferry-core --target "$TARGET" -e normal | grep -E '\b(slint|winit)\b'; then
+            echo "::error::ferry-core must not depend on a UI toolkit."
+            exit 1
+          fi
+          if cargo tree --locked -p ferry --target "$TARGET" -e normal | grep -E '\b(tokio|async-std|smol)\b'; then
+            echo "::error::ferry.exe must not depend on an async runtime."
+            exit 1
+          fi
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the version
+        id: version
+        run: |
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/ferry/Cargo.toml | head -n1)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [[ "$version" != "$crate" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME doesn't match crates/ferry/Cargo.toml version $crate. Bump the crate versions first."
+              exit 1
+            fi
+            release=true
+          else
+            version="$crate"
+            release=false
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "Building Ferry $version (release: $release)"
+
+      - name: Prepare the runner
+        run: bash .gitea/scripts/prepare.sh $MINGW_PACKAGES icoutils
+
+      - name: Restore the Rust toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.rustup
+          key: rustup-${{ hashFiles('rust-toolchain.toml') }}
+
+      - name: Restore Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-build-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: cargo-build-${{ hashFiles('rust-toolchain.toml') }}-
+
+      - name: Install Rust and fetch crates
+        run: bash .gitea/scripts/rust.sh
+
+      - name: Build
+        run: cargo build --locked --release --workspace --target "$TARGET"
+
+      - name: Check the programs carry Ferry's icon and need only Windows' own DLLs
+        run: |
+          bin="target/$TARGET/release"
+          for exe in ferry.exe; do
+            dlls=$(x86_64-w64-mingw32-objdump -p "$bin/$exe" | sed -n 's/^\s*DLL Name: //p' | sort -u)
+            echo "$exe ($(stat -c %s "$bin/$exe") bytes) imports: $(echo $dlls)"
+            if echo "$dlls" | grep -iE '^(libgcc|libstdc\+\+|libwinpthread)'; then
+              echo "::error::$exe depends on a MinGW runtime DLL; it must be linked statically."
+              exit 1
+            fi
+            if ! wrestool -l --type=group_icon "$bin/$exe" | grep -q .; then
+              echo "::error::$exe has no icon resource (check embed-resource in its build.rs)."
+              exit 1
+            fi
+            wrestool -l --type=group_icon "$bin/$exe"
+          done
+          mkdir -p bin && cp "$bin/ferry.exe" bin/
+
+      - name: Keep the programs
+        uses: actions/upload-artifact@v3
+        with:
+          name: programs
+          path: bin/
+          retention-days: 3
+
+  package:
+    name: Package
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare the runner
+        run: bash .gitea/scripts/prepare.sh nsis zip
+
+      - name: Get the programs
+        uses: actions/download-artifact@v3
+        with:
+          name: programs
+          path: bin
+
+      - name: Build the installer and portable zip
+        run: |
+          mkdir -p dist
+          makensis -V2 -DVERSION="$VERSION" -DVERNUM="${VERSION%%-*}" -DBIN="$PWD/bin" \
+            -DOUT="$PWD/dist/Ferry-Setup-$VERSION.exe" installer/ferry.nsi
+          cp README.md bin/
+          (cd bin && zip -q -9 "../dist/Ferry-$VERSION-portable-x64.zip" ferry.exe README.md)
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+          ls -l dist && cat dist/SHA256SUMS.txt
+
+      - name: Keep the packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: ferry-${{ env.VERSION }}
+          path: dist/
+          retention-days: 14
+
+  release:
+    name: Release
+    needs: [lint, build, package]
+    if: needs.build.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      # Full history and tags: the notes list the commits since the previous tag.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare the runner
+        run: bash .gitea/scripts/prepare.sh curl jq openssl
+
+      - name: Get the packages
+        uses: actions/download-artifact@v3
+        with:
+          name: ferry-${{ env.VERSION }}
+          path: dist
+
+      - name: Sign the checksums
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          # Installed copies refuse an update unless SHA256SUMS.txt.sig is UPDATE_KEY's signature of
+          # SHA256SUMS.txt (crates/ferry/src/update.rs; docs/verification.md, "Update signing key").
+          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+            echo "::error::The UPDATE_SIGNING_KEY secret is not set, so installed copies would refuse this release."
+            exit 1
+          fi
+          key=$(mktemp)
+          trap 'rm -f "$key" "$key.pub"' EXIT
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key"
+          openssl pkey -in "$key" -pubout -out "$key.pub"
+          pub=$(openssl pkey -pubin -in "$key.pub" -outform DER | tail -c 65 | od -An -tx1 | tr -d ' \n')
+          if [[ ${#pub} != 130 ]] || ! grep -q "$pub" crates/ferry/src/update.rs; then
+            echo "::error::The public half of UPDATE_SIGNING_KEY ($pub) is not UPDATE_KEY in crates/ferry/src/update.rs, so installed copies would refuse this release."
+            exit 1
+          fi
+          openssl dgst -sha256 -sign "$key" -out dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
+          openssl dgst -sha256 -verify "$key.pub" -signature dist/SHA256SUMS.txt.sig dist/SHA256SUMS.txt
+
+      - name: Publish the release
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          URL: ${{ github.server_url }}/${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: bash .gitea/scripts/release.sh dist

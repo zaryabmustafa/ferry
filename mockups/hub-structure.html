@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferry Window Structure</title>
+<style>
+/* Tokens: crates/ferry-ui/ui/theme.slint (DESIGN.md). Accent is the amber fallback. */
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --page: #e4e7ea;
+  --mica: #eef0f3; --layer: #fbfcfc; --layer-2: #f6f7f8; --subtle: #e6e8ea; --stroke: #d7d9dc;
+  --ink: #16191c; --muted: #4e5358; --ok: #21763c; --warn: #ba3728;
+  --accent: #c46d00; --accent-ink: #0f171f;
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--mica));
+  --ok-soft: color-mix(in srgb, var(--ok) 12%, var(--layer));
+  --warn-soft: color-mix(in srgb, var(--warn) 10%, var(--layer));
+  --seg-2: color-mix(in srgb, var(--accent) 60%, var(--ink));
+  --seg-3: color-mix(in srgb, var(--accent) 30%, var(--mica));
+  --shadow: 0 2px 4px rgb(0 0 0 / .04), 0 16px 40px rgb(0 0 0 / .14);
+  --menu-shadow: 0 2px 6px rgb(0 0 0 / .08), 0 8px 24px rgb(0 0 0 / .16);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --page: #0d0e10;
+  --mica: #15171a; --layer: #212326; --layer-2: #1c1e21; --subtle: #292c2e; --stroke: #2f3235;
+  --ink: #eef0f3; --muted: #a6abb1; --ok: #6fd087; --warn: #fd8c7b;
+  --accent: #f5ae39; --accent-ink: #1f1306;
+  --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--layer));
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, var(--layer));
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, var(--layer));
+  --seg-3: color-mix(in srgb, var(--accent) 35%, var(--layer));
+  --shadow: 0 2px 4px rgb(0 0 0 / .3), 0 20px 48px rgb(0 0 0 / .5);
+  --menu-shadow: 0 2px 6px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .5);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--page); }
+body { margin: 0; color: var(--ink); font: 14px/20px var(--font); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent); color: var(--accent-ink); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- sheet around the window ---------- */
+.sheet { max-width: 1080px; margin: 0 auto; padding: 32px 16px 64px; }
+.sheet-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; margin-bottom: 20px; }
+.sheet-head h1 { font: 600 28px/36px var(--font-display); margin: 0 0 4px; letter-spacing: -0.01em; }
+.sheet-head p { margin: 0; color: var(--muted); max-width: 66ch; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--subtle); color: var(--ink); font-weight: 600; }
+.notes { margin: 28px 0 0; color: var(--muted); max-width: 80ch; }
+.notes h2 { font: 600 20px/28px var(--font-display); color: var(--ink); margin: 0 0 8px; }
+.notes ul { margin: 0; padding-left: 20px; }
+.notes li { margin: 4px 0; }
+.stage { overflow-x: auto; padding: 4px 4px 16px; }
+
+/* ---------- window ---------- */
+.win { width: 1000px; background: var(--mica); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+.titlebar { height: 32px; display: flex; align-items: center; gap: 10px; padding-left: 14px; font-size: 12px; }
+.titlebar .grow { flex: 1; }
+.caps { display: flex; height: 100%; }
+.caps span { width: 46px; display: grid; place-items: center; color: var(--muted); }
+.body { display: flex; gap: 8px; height: 640px; padding: 0 8px 8px; }
+
+.ico { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ico-12 { width: 12px; height: 12px; }
+.ico-20 { width: 20px; height: 20px; }
+
+/* panels: the sidebar and the page each sit on their own layer, like Unity Hub */
+.panel { background: var(--layer-2); border: 1px solid var(--stroke); border-radius: 8px; }
+.side { width: 232px; flex: none; display: flex; flex-direction: column; padding: 8px; gap: 2px; }
+.who { display: flex; gap: 12px; align-items: center; padding: 10px 10px 16px; }
+.who b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav { position: relative; display: flex; align-items: center; gap: 14px; height: 36px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; text-align: left; cursor: pointer; width: 100%; }
+.nav:hover { background: var(--subtle); }
+.nav[aria-current="page"] { background: var(--layer); box-shadow: 0 0 0 1px var(--stroke) inset; }
+.nav[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.nav .count { margin-left: auto; font-size: 12px; color: var(--muted); }
+.nav .count.warn { color: var(--warn); font-weight: 600; }
+.side .spacer { flex: 1; }
+.side .ver { padding: 8px 12px 2px; font-size: 12px; color: var(--muted); }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.head { display: flex; align-items: center; gap: 8px; padding: 20px 24px 0; min-height: 68px; }
+.head h2 { font: 600 28px/36px var(--font-display); margin: 0; letter-spacing: -0.01em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.head .back { margin-left: -8px; }
+.tabs { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--stroke); margin-top: 12px; }
+.tab { position: relative; border: 0; background: transparent; padding: 10px 14px 12px; cursor: pointer; color: var(--muted); border-radius: 4px 4px 0 0; display: inline-flex; gap: 8px; align-items: center; }
+.tab:hover { color: var(--ink); background: var(--subtle); }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 3px; border-radius: 2px 2px 0 0; background: var(--accent); }
+.tab .role { font-weight: 400; color: var(--muted); font-size: 12px; }
+.tab .badge { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--warn); color: var(--layer); font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+.scroll { flex: 1; overflow: auto; padding: 4px 24px 24px; }
+.scroll.no-tabs { padding-top: 12px; }
+
+.label { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; min-height: 32px; }
+.label h3 { margin: 0; flex: 1; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.lead { color: var(--muted); margin: 16px 0 0; max-width: 72ch; }
+
+/* buttons, chips, controls */
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--stroke); background: var(--layer); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--layer-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--subtle); }
+.btn.icon { width: 32px; padding: 0; justify-content: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 4px; font-size: 12px; line-height: 16px; white-space: nowrap; border: 1px solid var(--stroke); color: var(--ink); background: transparent; }
+.chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: var(--ok-soft); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: var(--warn-soft); }
+.chip.accent { border-color: transparent; background: var(--accent-soft); font-weight: 600; }
+.chip.muted { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 16px; background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+
+.toggle { display: inline-flex; align-items: center; gap: 12px; border: 0; background: transparent; padding: 0; cursor: pointer; }
+.toggle .sw { width: 40px; height: 20px; border-radius: 10px; border: 1px solid var(--muted); background: var(--layer); position: relative; }
+.toggle .sw::after { content: ""; position: absolute; top: 3px; left: 4px; width: 12px; height: 12px; border-radius: 6px; background: var(--muted); }
+.toggle[aria-checked="true"] .sw { background: var(--accent); border-color: transparent; }
+.toggle[aria-checked="true"] .sw::after { left: 23px; background: var(--accent-ink); }
+.toggle .state { min-width: 22px; text-align: right; }
+
+/* item cards: one per folder, server network, held delete (Unity Hub's install cards) */
+.cards { display: flex; flex-direction: column; gap: 8px; }
+.card { background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.item { display: flex; gap: 14px; padding: 14px 16px; align-items: flex-start; }
+.item .lead-ico { padding-top: 2px; color: var(--ink); }
+.item .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.item .t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.item .t b { font-weight: 600; }
+.item .t .sec { color: var(--muted); }
+.item .path { font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .side-ctl { display: flex; align-items: center; gap: 8px; flex: none; }
+.prio { width: 22px; height: 22px; border-radius: 4px; background: var(--subtle); color: var(--muted); font-size: 12px; font-weight: 600; display: grid; place-items: center; flex: none; margin-top: -1px; }
+.item.off .t b, .item.off .path { color: var(--muted); }
+
+.manage { position: relative; }
+.menu { position: absolute; right: 0; top: 36px; z-index: 5; min-width: 200px; padding: 4px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--menu-shadow); display: none; }
+.manage.open .menu { display: block; }
+.menu button { display: flex; align-items: center; gap: 12px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; text-align: left; cursor: pointer; white-space: nowrap; }
+.menu button:hover { background: var(--subtle); }
+.menu button[disabled] { color: var(--muted); cursor: default; }
+.menu button[disabled]:hover { background: transparent; }
+.menu hr { border: 0; border-top: 1px solid var(--stroke); margin: 4px -4px; }
+.menu .danger { color: var(--warn); }
+
+/* status page */
+.now { display: flex; gap: 16px; padding: 18px 16px; align-items: flex-start; }
+.now .big { font: 600 20px/28px var(--font-display); }
+.now .line { margin-top: 2px; }
+.now .detail { color: var(--muted); }
+.meter { padding: 16px; }
+.meter-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.meter-top .big { font: 600 20px/28px var(--font-display); }
+.meter-top .grow { flex: 1; color: var(--muted); }
+.bar { height: 8px; border-radius: 4px; background: var(--subtle); overflow: hidden; display: flex; }
+.bar > i { display: block; height: 100%; border-right: 1px solid var(--layer); }
+.bar > i:nth-child(1) { background: var(--accent); }
+.bar > i:nth-child(2) { background: var(--seg-2); }
+.bar > i:nth-child(3) { background: var(--seg-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+.prog { width: 150px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex: none; padding-top: 2px; }
+.thin { width: 150px; height: 4px; border-radius: 2px; background: var(--subtle); overflow: hidden; }
+.thin > i { display: block; height: 100%; background: var(--accent); }
+.done { display: inline-flex; gap: 6px; align-items: center; color: var(--ok); }
+
+/* forms */
+.form .row { padding: 12px 16px 14px; }
+.form .row + .row { border-top: 1px solid var(--stroke); }
+.form .row .hint { font-size: 12px; line-height: 16px; color: var(--muted); margin-top: 2px; }
+.field { margin-top: 8px; height: 32px; max-width: 420px; border: 1px solid var(--stroke); border-radius: 4px; background: var(--layer); padding: 0 10px; display: flex; align-items: center; }
+.field.focus { box-shadow: inset 0 -2px 0 var(--accent); }
+.field .ph { color: var(--muted); }
+.setrow { display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
+.setrow + .setrow { border-top: 1px solid var(--stroke); }
+.setrow .grow { flex: 1; min-width: 0; }
+.setrow .hint { font-size: 12px; line-height: 16px; color: var(--muted); margin-top: 2px; }
+.gb { display: inline-flex; align-items: center; gap: 8px; }
+.gb .field { margin: 0; width: 96px; }
+.note { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; }
+.note.ok { color: var(--ink); }
+.note.ok .ico { color: var(--ok); margin-top: 2px; }
+.note.problem { padding: 12px; border: 1px solid var(--warn); border-radius: 6px; background: var(--layer); }
+.note.problem .ico { color: var(--warn); margin-top: 2px; }
+.path-line { display: flex; gap: 8px; align-items: center; color: var(--ok); margin-top: 16px; }
+
+/* activity */
+.log .ln { display: grid; grid-template-columns: 140px 1fr; gap: 16px; padding: 7px 16px; }
+.log .ln + .ln { border-top: 1px solid var(--stroke); }
+.log .ln time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.empty { padding: 32px 16px; text-align: center; color: var(--muted); }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; }
+
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-status" viewBox="0 0 16 16"><path d="M1.5 8h3l2-5 3 10 2-5h3"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 4.5v8h13v-7H8L6.5 3.5h-5z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 16 16"><path d="M8 14.5s5-4.5 5-8.5A5 5 0 0 0 3 6c0 4 5 8.5 5 8.5z"/><circle cx="8" cy="6" r="1.8"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M5.5 4h9M5.5 8h9M5.5 12h9M2 4h.5M2 8h.5M2 12h.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 2.5v11M2.5 8h11"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5.5 3v10M10.5 3v10"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 1.8l6.5 12H1.5z"/><path d="M8 6.5v3.5M8 12v.2"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 16 16"><path d="M1.5 6a9.5 9.5 0 0 1 13 0M3.8 8.6a6 6 0 0 1 8.4 0M6 11.2a2.8 2.8 0 0 1 4 0"/><circle cx="8" cy="13.3" r=".4"/></symbol>
+  <symbol id="i-server" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="12" height="4.5" rx="1"/><path d="M4.5 4.75h.1M4.5 11.25h.1"/></symbol>
+  <symbol id="i-back" viewBox="0 0 16 16"><path d="M13 8H3M7 4L3 8l4 4"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 16 16"><path d="M10.5 2.5l3 3L5.5 13.5h-3v-3z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.8 9.5h6.4L12 4"/></symbol>
+  <symbol id="i-delete" viewBox="0 0 16 16"><path d="M3 3.5h10l-1 10H4z"/><path d="M6.5 6.5l3 3M9.5 6.5l-3 3"/></symbol>
+  <symbol id="i-update" viewBox="0 0 16 16"><path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2.5 13.5h11"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 1.8l5.5 2v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.2 2.5 7.8v-4z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 16 16"><path d="M5.5 1.5v3M10.5 1.5v3M3.5 4.5h9v3a4.5 4.5 0 0 1-9 0zM8 12v2.5"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="7" rx="1"/><path d="M1.5 12.5h13"/></symbol>
+  <symbol id="i-studio" viewBox="0 0 16 16"><path d="M2 14V6l6-4 6 4v8M6 14v-4h4v4"/></symbol>
+</svg>
+
+<div class="sheet">
+  <div class="sheet-head">
+    <div>
+      <h1>Ferry window, restructured</h1>
+      <p>Unity Hub's structure in Ferry's own Windows 11 look. The sidebar and the page sit on separate panels. Each page has its title with its main actions on the right, tabs where a page has more than one view, small labels over each section, and one card per item with chips and a Manage menu. Click the sidebar, the tabs and any Manage button.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Theme">
+      <button aria-pressed="true" data-theme-btn="light">Light</button>
+      <button aria-pressed="false" data-theme-btn="dark">Dark</button>
+    </div>
+  </div>
+
+  <div class="stage">
+  <div class="win" role="application" aria-label="Ferry window mockup">
+    <div class="titlebar">
+      <svg class="ico" viewBox="0 0 16 16"><path d="M2 10.5h12l-1.5 3h-9z" stroke-width="1.4"/><rect x="5" y="6.5" width="3" height="3" rx=".4" fill="var(--accent)" stroke="none"/><rect x="8.6" y="7.5" width="2.6" height="2" rx=".4" fill="currentColor" stroke="none"/></svg>
+      <span>Ferry</span><span class="grow"></span>
+      <div class="caps"><span>&#8212;</span><span>&#9744;</span><span>&#10005;</span></div>
+    </div>
+    <div class="body">
+      <!-- Sidebar panel -->
+      <nav class="panel side" aria-label="Sections">
+        <div class="who">
+          <svg class="ico ico-20"><use href="#i-laptop"/></svg>
+          <div style="min-width:0"><b>WORK-LAPTOP</b><small>Studio → Lake house</small></div>
+        </div>
+        <button class="nav" data-page="status" aria-current="page"><svg class="ico"><use href="#i-status"/></svg>Status</button>
+        <button class="nav" data-page="folders"><svg class="ico"><use href="#i-folder"/></svg>Folders<span class="count">3</span></button>
+        <button class="nav" data-page="locations"><svg class="ico"><use href="#i-pin"/></svg>Locations</button>
+        <button class="nav" data-page="activity"><svg class="ico"><use href="#i-list"/></svg>Activity<span class="count warn">1 waiting</span></button>
+        <div class="spacer"></div>
+        <button class="nav" data-page="settings"><svg class="ico"><use href="#i-gear"/></svg>Settings<span class="count" data-update-dot hidden>Update</span></button>
+        <div class="ver">Ferry 0.2.2</div>
+      </nav>
+
+      <!-- ================= STATUS ================= -->
+      <section class="panel main" data-view="status">
+        <div class="head">
+          <h2>Status</h2>
+          <span class="pill"><svg class="ico"><use href="#i-studio"/></svg>At Studio</span>
+          <button class="btn"><svg class="ico"><use href="#i-pause"/></svg>Pause</button>
+        </div>
+        <div class="scroll no-tabs">
+          <div class="card now">
+            <svg class="ico ico-20" style="margin-top:4px"><use href="#i-update"/></svg>
+            <div>
+              <div class="big">Filling the laptop at Studio</div>
+              <div class="line">Copying projects: 812 files so far.</div>
+              <div class="detail num">100 MB/s, about 41 minutes left. Two more trips after this one.</div>
+            </div>
+          </div>
+
+          <div class="label"><h3>Laptop space</h3></div>
+          <div class="card meter">
+            <div class="meter-top"><span class="big num">18.2 GB</span><span class="grow num">of 50 GB on board</span></div>
+            <div class="bar" role="img" aria-label="18.2 of 50 GB used"><i style="width:36%"></i><i style="width:10%"></i><i style="width:18%"></i></div>
+            <div class="legend num">
+              <span><i class="swatch" style="background:var(--accent)"></i>On board 18.2 GB</span>
+              <span><i class="swatch" style="background:var(--seg-2)"></i>To push 5.1 GB</span>
+              <span><i class="swatch" style="background:var(--seg-3)"></i>Planned 9 GB</span>
+              <span><i class="swatch" style="background:var(--subtle);box-shadow:0 0 0 1px var(--stroke) inset"></i>Free 17.7 GB</span>
+            </div>
+          </div>
+
+          <div class="label"><h3>Folders, in priority order</h3><button class="btn ghost" data-go="folders">Manage folders</button></div>
+          <div class="cards">
+            <div class="card item">
+              <span class="prio">1</span>
+              <div class="grow">
+                <div class="t"><b>projects</b><span class="chip accent num">Carrying 11.7 GB</span></div>
+                <div class="path">\\192.0.2.10\work\projects → \\192.0.2.20\work\projects</div>
+              </div>
+              <div class="prog"><span class="num">64% at Lake house</span><div class="thin"><i style="width:64%"></i></div></div>
+            </div>
+            <div class="card item">
+              <span class="prio">2</span>
+              <div class="grow">
+                <div class="t"><b>photos</b><span class="chip accent num">Carrying 6.5 GB</span><span class="chip warn num"><svg class="ico ico-12"><use href="#i-warn"/></svg>57 deletes waiting</span></div>
+                <div class="path">\\192.0.2.10\media\photos → \\192.0.2.20\archive\photos</div>
+              </div>
+              <div class="prog"><span class="num">91% at Lake house</span><div class="thin"><i style="width:91%"></i></div></div>
+            </div>
+            <div class="card item off">
+              <span class="prio">3</span>
+              <div class="grow">
+                <div class="t"><b>vm-backups</b><span class="chip muted">Off</span></div>
+                <div class="path">\\192.0.2.10\backups\vm → \\192.0.2.20\backups\vm</div>
+              </div>
+              <div class="prog"><span class="done"><svg class="ico"><use href="#i-check"/></svg>Up to date</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= FOLDERS ================= -->
+      <section class="panel main" data-view="folders" hidden>
+        <div class="head">
+          <h2>Folders</h2>
+          <button class="btn primary" data-edit="new"><svg class="ico"><use href="#i-plus"/></svg>Add folder</button>
+        </div>
+        <div class="tabs" role="tablist" data-tabs="folders">
+          <button class="tab" role="tab" aria-selected="true" data-tab="all">All <span class="role num">3</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="on">Carrying <span class="role num">2</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="off">Off <span class="role num">1</span></button>
+        </div>
+        <div class="scroll">
+          <p class="lead">Ferry carries these folders from Studio to Lake house, top first. When the laptop fills up, folders higher up go first.</p>
+          <div class="label"><h3>In priority order</h3></div>
+          <div class="cards">
+            <div class="card item" data-state="on">
+              <span class="prio">1</span>
+              <div class="grow">
+                <div class="t"><b>projects</b><span class="sec">work/projects</span></div>
+                <div class="path">\\192.0.2.10\work\projects → \\192.0.2.20\work\projects</div>
+                <div class="chips"><span class="chip num">11.7 GB on the laptop</span><span class="chip num">64% at Lake house</span></div>
+              </div>
+              <div class="side-ctl">
+                <button class="toggle" role="switch" aria-checked="true" aria-label="Carry projects"><span class="state">On</span><span class="sw"></span></button>
+                <div class="manage"><button class="btn" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-gear"/></svg>Manage<svg class="ico ico-12"><use href="#i-down"/></svg></button>
+                  <div class="menu" role="menu"><button role="menuitem" data-edit="projects"><svg class="ico"><use href="#i-edit"/></svg>Edit folder</button><button role="menuitem" disabled><svg class="ico"><use href="#i-up"/></svg>Move up</button><button role="menuitem"><svg class="ico"><use href="#i-down"/></svg>Move down</button><hr><button role="menuitem" class="danger"><svg class="ico"><use href="#i-trash"/></svg>Remove folder</button></div></div>
+              </div>
+            </div>
+            <div class="card item" data-state="on">
+              <span class="prio">2</span>
+              <div class="grow">
+                <div class="t"><b>photos</b><span class="sec">media/photos</span></div>
+                <div class="path">\\192.0.2.10\media\photos → \\192.0.2.20\archive\photos</div>
+                <div class="chips"><span class="chip num">6.5 GB on the laptop</span><span class="chip num">91% at Lake house</span><span class="chip warn num">57 deletes waiting</span></div>
+              </div>
+              <div class="side-ctl">
+                <button class="toggle" role="switch" aria-checked="true" aria-label="Carry photos"><span class="state">On</span><span class="sw"></span></button>
+                <div class="manage"><button class="btn" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-gear"/></svg>Manage<svg class="ico ico-12"><use href="#i-down"/></svg></button>
+                  <div class="menu" role="menu"><button role="menuitem" data-edit="photos"><svg class="ico"><use href="#i-edit"/></svg>Edit folder</button><button role="menuitem"><svg class="ico"><use href="#i-up"/></svg>Move up</button><button role="menuitem"><svg class="ico"><use href="#i-down"/></svg>Move down</button><hr><button role="menuitem" class="danger"><svg class="ico"><use href="#i-trash"/></svg>Remove folder</button></div></div>
+              </div>
+            </div>
+            <div class="card item off" data-state="off">
+              <span class="prio">3</span>
+              <div class="grow">
+                <div class="t"><b>vm-backups</b><span class="sec">backups/vm</span></div>
+                <div class="path">\\192.0.2.10\backups\vm → \\192.0.2.20\backups\vm</div>
+                <div class="chips"><span class="chip ok"><svg class="ico ico-12"><use href="#i-check"/></svg>Up to date</span><span class="chip">Allowed to be empty</span></div>
+              </div>
+              <div class="side-ctl">
+                <button class="toggle" role="switch" aria-checked="false" aria-label="Carry vm-backups"><span class="state">Off</span><span class="sw"></span></button>
+                <div class="manage"><button class="btn" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-gear"/></svg>Manage<svg class="ico ico-12"><use href="#i-down"/></svg></button>
+                  <div class="menu" role="menu"><button role="menuitem" data-edit="vm-backups"><svg class="ico"><use href="#i-edit"/></svg>Edit folder</button><button role="menuitem"><svg class="ico"><use href="#i-up"/></svg>Move up</button><button role="menuitem" disabled><svg class="ico"><use href="#i-down"/></svg>Move down</button><hr><button role="menuitem" class="danger"><svg class="ico"><use href="#i-trash"/></svg>Remove folder</button></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= FOLDER EDIT ================= -->
+      <section class="panel main" data-view="folder-edit" hidden>
+        <div class="head">
+          <button class="btn ghost icon back" data-go="folders" aria-label="Back to Folders"><svg class="ico"><use href="#i-back"/></svg></button>
+          <h2 data-edit-title>Edit projects</h2>
+          <button class="btn" data-go="folders">Cancel</button>
+          <button class="btn primary" data-go="folders" data-edit-save>Save folder</button>
+        </div>
+        <div class="scroll no-tabs">
+          <div class="label"><h3>Paths</h3></div>
+          <div class="card form">
+            <div class="row"><div>Studio folder</div><div class="hint">The folder on Studio, starting with the share name: repositories, or backups/vm.</div><div class="field focus" data-edit-src>work/projects</div></div>
+            <div class="row"><div>Lake house folder</div><div class="hint">Where it goes on Lake house. Leave empty to use the same path.</div><div class="field"><span class="ph">Same as the folder on Studio</span></div></div>
+          </div>
+          <div class="label"><h3>Safety</h3></div>
+          <div class="card">
+            <div class="setrow"><div class="grow"><div>Allow this folder to be empty</div><div class="hint">If the folder on Studio looks empty, Ferry deletes nothing at Lake house, in case the share is missing. Turn this on only for a folder that can really be empty.</div></div><button class="toggle" role="switch" aria-checked="false"><span class="state">Off</span><span class="sw"></span></button></div>
+          </div>
+          <p class="lead" style="font-size:12px;line-height:16px">Cargo name: projects. Changing a path discards the files Ferry carried for this folder that aren't at Lake house yet. The next trip at Studio carries them again.</p>
+          <div data-edit-remove>
+            <div class="label"><h3>Remove</h3></div>
+            <div class="card"><div class="setrow"><div class="grow"><div>Remove this folder</div><div class="hint">Ferry stops carrying it and discards the files it carried for it that aren't at Lake house yet. Files already at Lake house stay there.</div></div><button class="btn"><svg class="ico"><use href="#i-trash"/></svg>Remove folder</button></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= LOCATIONS ================= -->
+      <section class="panel main" data-view="locations" hidden>
+        <div class="head">
+          <h2>Locations</h2>
+          <button class="btn"><svg class="ico"><use href="#i-plug"/></svg>Test connection</button>
+          <button class="btn primary" data-save-server>Save Studio server</button>
+        </div>
+        <div class="tabs" role="tablist" data-tabs="locations">
+          <button class="tab" role="tab" aria-selected="true" data-tab="src">Studio <span class="role">Source</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="dst">Lake house <span class="role">Destination</span><svg class="ico ico-12" style="color:var(--warn)"><use href="#i-warn"/></svg></button>
+        </div>
+        <div class="scroll" data-loc="src">
+          <div class="path-line"><svg class="ico"><use href="#i-check"/></svg>Direct on this network (Ethernet). Copies stay on the local network.</div>
+          <div class="label"><h3>Server</h3></div>
+          <div class="card form">
+            <div class="row"><div>Name</div><div class="hint">What you call this place. Ferry uses it in its messages.</div><div class="field">Studio</div></div>
+            <div class="row"><div>Address on its network</div><div class="hint">Name or IP address Ferry uses when the laptop is there.</div><div class="field">192.0.2.10</div></div>
+            <div class="row"><div>Remote address (optional)</div><div class="hint">How Ferry reaches this server when you're somewhere else, for example a Tailscale, WireGuard or ZeroTier address.</div><div class="field">studio-nas</div></div>
+          </div>
+          <div class="label"><h3>Sign-in</h3></div>
+          <div class="card form">
+            <div class="row"><div>User name</div><div class="hint">The account Ferry signs in with.</div><div class="field">ferry</div></div>
+            <div class="row"><div>Password</div><div class="hint">Stored in Windows Credential Manager as Ferry/office. Leave empty to keep the saved one.</div><div class="field"><span class="ph">Saved</span></div></div>
+          </div>
+          <div class="label"><h3>Networks Ferry recognizes</h3><button class="btn"><svg class="ico"><use href="#i-wifi"/></svg>Remember this network</button></div>
+          <div class="cards">
+            <div class="card item">
+              <span class="lead-ico"><svg class="ico"><use href="#i-wifi"/></svg></span>
+              <div class="grow">
+                <div class="t"><b>Studio LAN</b><span class="chip ok"><svg class="ico ico-12"><use href="#i-check"/></svg>Here now</span></div>
+                <div class="chips"><span class="chip">Router 02:00:00:00:00:01</span><span class="chip">Server 192.0.2.10</span></div>
+              </div>
+              <div class="side-ctl">
+                <div class="manage"><button class="btn" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-gear"/></svg>Manage<svg class="ico ico-12"><use href="#i-down"/></svg></button>
+                  <div class="menu" role="menu"><button role="menuitem"><svg class="ico"><use href="#i-shield"/></svg>Trust this VPN for copies</button><hr><button role="menuitem" class="danger"><svg class="ico"><use href="#i-trash"/></svg>Forget network</button></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="scroll" data-loc="dst" hidden>
+          <div class="note problem" style="margin-top:16px"><svg class="ico"><use href="#i-warn"/></svg><div>Can't reach Lake house from here: no route to 192.0.2.20 through lake-nas. Ferry tries again when the network changes.</div></div>
+          <div class="label"><h3>Server</h3></div>
+          <div class="card form">
+            <div class="row"><div>Name</div><div class="hint">What you call this place. Ferry uses it in its messages.</div><div class="field">Lake house</div></div>
+            <div class="row"><div>Address on its network</div><div class="hint">Name or IP address Ferry uses when the laptop is there.</div><div class="field">192.0.2.20</div></div>
+            <div class="row"><div>Remote address (optional)</div><div class="hint">How Ferry reaches this server when you're somewhere else.</div><div class="field">lake-nas</div></div>
+          </div>
+          <div class="label"><h3>Sign-in</h3></div>
+          <div class="card form">
+            <div class="row"><div>User name</div><div class="hint">The account Ferry signs in with.</div><div class="field">ferry</div></div>
+            <div class="row"><div>Password</div><div class="hint">Stored in Windows Credential Manager as Ferry/home. Leave empty to keep the saved one.</div><div class="field"><span class="ph">Saved</span></div></div>
+          </div>
+          <div class="label"><h3>Networks Ferry recognizes</h3><button class="btn"><svg class="ico"><use href="#i-wifi"/></svg>Remember this network</button></div>
+          <div class="cards">
+            <div class="card item">
+              <span class="lead-ico"><svg class="ico"><use href="#i-wifi"/></svg></span>
+              <div class="grow">
+                <div class="t"><b>Lake house Wi-Fi</b><span class="chip accent"><svg class="ico ico-12"><use href="#i-shield"/></svg>VPN trusted for copies</span></div>
+                <div class="chips"><span class="chip">Router 02:00:00:00:00:02</span><span class="chip">Server 192.0.2.20</span><span class="chip">Tailscale</span></div>
+              </div>
+              <div class="side-ctl">
+                <div class="manage"><button class="btn" aria-haspopup="menu" aria-expanded="false"><svg class="ico"><use href="#i-gear"/></svg>Manage<svg class="ico ico-12"><use href="#i-down"/></svg></button>
+                  <div class="menu" role="menu"><button role="menuitem"><svg class="ico"><use href="#i-shield"/></svg>Stop trusting this VPN</button><hr><button role="menuitem" class="danger"><svg class="ico"><use href="#i-trash"/></svg>Forget network</button></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= ACTIVITY ================= -->
+      <section class="panel main" data-view="activity" hidden>
+        <div class="head">
+          <h2>Activity</h2>
+          <button class="btn"><svg class="ico"><use href="#i-refresh"/></svg>Refresh</button>
+        </div>
+        <div class="tabs" role="tablist" data-tabs="activity">
+          <button class="tab" role="tab" aria-selected="true" data-tab="waiting">Waiting for your OK <span class="badge">1</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="recent">Recent</button>
+        </div>
+        <div class="scroll" data-act="waiting">
+          <p class="lead">Ferry holds deletes at Lake house when more files vanish at Studio than your limits allow, in case a share went missing.</p>
+          <div class="label"><h3>Held deletes</h3></div>
+          <div class="cards">
+            <div class="card item">
+              <span class="lead-ico"><svg class="ico"><use href="#i-delete"/></svg></span>
+              <div class="grow">
+                <div class="t"><b>photos</b><span class="chip warn num">57 files</span><span class="chip num">12% of the folder</span></div>
+                <div class="path">\\192.0.2.20\archive\photos</div>
+                <div style="color:var(--muted)">Files deleted at Studio. Ferry holds these deletes at Lake house until you confirm.</div>
+              </div>
+              <div class="side-ctl"><button class="btn primary">Delete 57 files at Lake house</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="scroll" data-act="recent" hidden>
+          <div class="label"><h3>Today</h3></div>
+          <div class="card log num">
+            <div class="ln"><time>09:41:02</time><span>57 deletes held for photos (over the 10% limit)</span></div>
+            <div class="ln"><time>09:40:51</time><span>Carried 812 files for projects (11.7 GB)</span></div>
+            <div class="ln"><time>09:12:15</time><span>Filling: projects</span></div>
+            <div class="ln"><time>09:12:09</time><span>At Studio</span></div>
+            <div class="ln"><time>09:12:03</time><span>Ferry started</span></div>
+          </div>
+          <div class="label"><h3>Yesterday</h3></div>
+          <div class="card log num">
+            <div class="ln"><time>21:05:40</time><span>Lake house is up to date</span></div>
+            <div class="ln"><time>20:31:12</time><span>Unloading at Lake house: 14.2 GB</span></div>
+            <div class="ln"><time>20:30:58</time><span>At Lake house</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SETTINGS ================= -->
+      <section class="panel main" data-view="settings" hidden>
+        <div class="head">
+          <h2>Settings</h2>
+          <button class="btn primary">Save settings</button>
+        </div>
+        <div class="scroll no-tabs">
+          <div class="label"><h3>Updates</h3></div>
+          <div class="card">
+            <div class="setrow">
+              <svg class="ico ico-20"><use href="#i-update"/></svg>
+              <div class="grow" data-upd="ok"><div class="t" style="display:flex;gap:8px;align-items:center"><span>Ferry 0.2.2</span><span class="chip ok"><svg class="ico ico-12"><use href="#i-check"/></svg>Up to date</span></div><div class="hint">Checked today at 09:12.</div></div>
+              <div class="grow" data-upd="new" hidden><div class="t" style="display:flex;gap:8px;align-items:center"><span>Ferry 0.2.3 is available</span><span class="chip accent">New</span></div><div class="hint">You have 0.2.2. Ferry closes this window, installs it and starts again.</div></div>
+              <div class="grow" data-upd="busy" hidden><div class="t">Downloading Ferry 0.2.3</div><div class="hint">Ferry will close and start again in a moment.</div></div>
+              <button class="btn" data-upd-btn="check"><svg class="ico"><use href="#i-refresh"/></svg>Check for updates</button>
+              <button class="btn primary" data-upd-btn="install" hidden><svg class="ico"><use href="#i-update"/></svg>Update to 0.2.3</button>
+            </div>
+            <div class="setrow"><div class="grow"><div>Install updates automatically</div><div class="hint">Once a day, on a connection that isn't metered, and never during a trip. Ferry installs quietly and shows a notification.</div></div><button class="toggle" role="switch" aria-checked="true"><span class="state">On</span><span class="sw"></span></button></div>
+          </div>
+
+          <div class="label"><h3>Laptop space</h3></div>
+          <div class="card">
+            <div class="setrow"><div class="grow"><div>Space for cargo</div><div class="hint">Ferry fills the laptop with up to this much at Studio.</div></div><span class="gb"><span class="field num">50</span>GB</span></div>
+            <div class="setrow" style="flex-wrap:wrap"><div class="grow"><div>Cargo folder</div><div class="hint">Where carried files wait on the laptop. The default is %LOCALAPPDATA%\Ferry\cargo.</div></div><button class="btn"><svg class="ico"><use href="#i-folder"/></svg>Choose folder</button></div>
+            <div class="setrow"><div class="grow"><div>Keep free on the laptop</div><div class="hint">Ferry stops filling when the disk would drop below this.</div></div><span class="gb"><span class="field num">10</span>GB</span></div>
+          </div>
+
+          <div class="label"><h3>Behavior</h3></div>
+          <div class="card">
+            <div class="setrow"><div class="grow"><div>Pause on Battery Saver</div><div class="hint">Stop copying while Windows Battery Saver is on.</div></div><button class="toggle" role="switch" aria-checked="true"><span class="state">On</span><span class="sw"></span></button></div>
+            <div class="setrow"><div class="grow"><div>Start with Windows</div><div class="hint">Start Ferry when you sign in.</div></div><button class="toggle" role="switch" aria-checked="true"><span class="state">On</span><span class="sw"></span></button></div>
+            <div class="setrow"><div class="grow"><div>Notify when unload finishes</div><div class="hint">Show a notification when Lake house has everything the laptop carried.</div></div><button class="toggle" role="switch" aria-checked="false"><span class="state">Off</span><span class="sw"></span></button></div>
+          </div>
+
+          <div class="label"><h3>Deletes at Lake house</h3></div>
+          <div class="card">
+            <div class="setrow"><svg class="ico"><use href="#i-delete"/></svg><div class="grow"><div>Ferry asks before deleting more than 10% of a folder, or more than 50 files, at Lake house.</div><div class="hint">So a missing share at Studio never empties Lake house.</div></div></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  </div>
+
+  <div class="seg" role="group" aria-label="Update state" style="margin-top:4px">
+    <button aria-pressed="true" data-upd-state="ok">Settings: up to date</button>
+    <button aria-pressed="false" data-upd-state="new">Settings: update available</button>
+    <button aria-pressed="false" data-upd-state="busy">Settings: installing</button>
+  </div>
+
+  <div class="notes">
+    <h2>What changes</h2>
+    <ul>
+      <li>The sidebar and the page are two rounded panels on the window background. The version number sits at the bottom of the sidebar, and Settings shows "Update" there when one is waiting.</li>
+      <li>Every page header is the title on the left and that page's actions on the right: Pause, Add folder, Test connection and Save, Refresh, Save settings. Save buttons move from the bottom of forms into the header.</li>
+      <li>Tabs under the title where a page has views: Folders (All, Carrying, Off), Locations (one tab per server, with a warning mark when one needs a look), Activity (Waiting for your OK, Recent).</li>
+      <li>Small uppercase labels over each section. Some carry an action on the right, like Remember this network or Manage folders.</li>
+      <li>One card per folder, network and held delete: a name with secondary text, the paths, and chips for state. Rare actions (edit, move, remove, forget, trust a VPN) go into a Manage menu instead of a row of buttons.</li>
+      <li>Unchanged: the first-run setup steps, the tray flyout, colors, type and controls (DESIGN.md).</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function go(page) {
+  $$('[data-view]').forEach(v => v.hidden = v.dataset.view !== page);
+  const navPage = page === 'folder-edit' ? 'folders' : page;
+  $$('.nav').forEach(n => n.dataset.page === navPage ? n.setAttribute('aria-current', 'page') : n.removeAttribute('aria-current'));
+  closeMenus();
+}
+$$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.page)));
+$$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+$$('[data-edit]').forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation();
+  const id = b.dataset.edit, add = id === 'new';
+  $('[data-edit-title]').textContent = add ? 'Add folder' : 'Edit ' + id;
+  $('[data-edit-save]').textContent = add ? 'Add folder' : 'Save folder';
+  $('[data-edit-remove]').hidden = add;
+  $('[data-edit-src]').textContent = add ? '' : ({ projects: 'work/projects', photos: 'media/photos', 'vm-backups': 'backups/vm' })[id];
+  go('folder-edit');
+}));
+// tabs
+$$('[data-tabs]').forEach(list => list.addEventListener('click', e => {
+  const t = e.target.closest('.tab'); if (!t) return;
+  $$('.tab', list).forEach(x => x.setAttribute('aria-selected', x === t));
+  const sec = list.closest('section'), k = t.dataset.tab;
+  if (list.dataset.tabs === 'folders') $$('.item', sec).forEach(i => i.hidden = k !== 'all' && i.dataset.state !== k);
+  if (list.dataset.tabs === 'locations') {
+    $$('[data-loc]', sec).forEach(s => s.hidden = s.dataset.loc !== k);
+    $('[data-save-server]').textContent = k === 'src' ? 'Save Studio server' : 'Save Lake house server';
+  }
+  if (list.dataset.tabs === 'activity') $$('[data-act]', sec).forEach(s => s.hidden = s.dataset.act !== k);
+}));
+// manage menus
+function closeMenus(except) { $$('.manage').forEach(m => { if (m !== except) { m.classList.remove('open'); $('button', m).setAttribute('aria-expanded', 'false'); } }); }
+$$('.manage > .btn').forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation(); const m = b.parentElement; closeMenus(m);
+  const open = m.classList.toggle('open'); b.setAttribute('aria-expanded', open);
+}));
+document.addEventListener('click', () => closeMenus());
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
+// switches
+$$('.toggle').forEach(t => t.addEventListener('click', () => {
+  const on = t.getAttribute('aria-checked') !== 'true';
+  t.setAttribute('aria-checked', on); $('.state', t).textContent = on ? 'On' : 'Off';
+}));
+// theme
+$$('[data-theme-btn]').forEach(b => b.addEventListener('click', () => {
+  document.documentElement.dataset.theme = b.dataset.themeBtn;
+  $$('[data-theme-btn]').forEach(x => x.setAttribute('aria-pressed', x === b));
+}));
+// update states
+function upd(s) {
+  $$('[data-upd]').forEach(x => x.hidden = x.dataset.upd !== s);
+  $('[data-upd-btn="check"]').hidden = s !== 'ok';
+  $('[data-upd-btn="install"]').hidden = s !== 'new';
+  $('[data-update-dot]').hidden = s !== 'new';
+  $$('[data-upd-state]').forEach(x => x.setAttribute('aria-pressed', x.dataset.updState === s));
+}
+$$('[data-upd-state]').forEach(b => b.addEventListener('click', () => { upd(b.dataset.updState); go('settings'); }));
+$('[data-upd-btn="check"]').addEventListener('click', () => upd('new'));
+$('[data-upd-btn="install"]').addEventListener('click', () => upd('busy'));
+</script>
+</body>
+</html>

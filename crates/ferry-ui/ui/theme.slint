@@ -1,0 +1,42 @@
+// Tokens from DESIGN.md, OKLCH converted to sRGB by assets/brand/build.py.
+// Neutrals carry the brand's cool ink tint. The amber accent is only the fallback; Rust sets the Windows accent.
+export global Theme {
+    in property <bool> dark;
+    // High contrast: Rust replaces every color below with the system's.
+    in property <bool> hc;
+    in property <color> accent: dark ? #f5ae39 : #c46d00;
+    // Text on an accent fill; Rust picks it by luminance.
+    in property <color> accent-ink: dark ? #1f1306 : #0f171f;
+    in property <string> font: "Segoe UI Variable Text";
+    in property <string> font-display: "Segoe UI Variable Display";
+    out property <string> icons: "Segoe Fluent Icons";
+
+    in property <color> mica: dark ? #15171a : #eef0f3;
+    in property <color> layer: dark ? #212326 : #fbfcfc;
+    in property <color> layer-2: dark ? #1c1e21 : #f6f7f8;
+    in property <color> stroke: dark ? #2f3235 : #d7d9dc;
+    in property <color> ink: dark ? #eef0f3 : #16191c;
+    in property <color> muted: dark ? #a6abb1 : #4e5358;
+    in property <color> subtle: dark ? #292c2e : #e6e8ea;
+    in property <color> ok: dark ? #6fd087 : #21763c;
+    // Red, not orange: amber means "carrying", so attention must not look like it.
+    in property <color> warn: dark ? #fd8c7b : #ba3728;
+
+    // Accent family. accent-soft is mixed here; Rust sets seg-2/seg-3 (mixed toward ink so each keeps
+    // 3:1 against the track). These defaults only matter for previews.
+    in property <color> accent-soft: accent.mix(mica, 0.18);
+    in property <color> seg-2: accent.mix(ink, 0.6);
+    in property <color> seg-3: accent.mix(ink, 0.3);
+}
+
+// Like Windows, focus rings show only while the keyboard is in use: Tab turns them on, a click off.
+export global Focus {
+    in-out property <bool> keyboard;
+    public function gained(reason: FocusReason) {
+        if reason == FocusReason.tab-navigation {
+            self.keyboard = true;
+        } else if reason == FocusReason.pointer-click {
+            self.keyboard = false;
+        }
+    }
+}

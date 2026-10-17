@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferry Brand Directions</title>
+<style>
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --page: oklch(0.93 0.003 110);
+  --mica: oklch(0.955 0.004 110);
+  --layer: oklch(0.99 0.001 110);
+  --stroke: oklch(0.885 0.004 110);
+  --ink: oklch(0.21 0.008 110);
+  --muted: oklch(0.44 0.01 110);
+  --subtle: oklch(0.93 0.004 110);
+  --warn: oklch(0.62 0.15 65);
+  --err: oklch(0.55 0.19 27);
+  --taskbar: oklch(0.94 0.004 110 / 0.92);
+  --tray-ink: oklch(0.2 0 0);
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.04), 0 16px 40px oklch(0 0 0 / 0.14);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: oklch(0.15 0.004 110); --mica: oklch(0.205 0.006 110); --layer: oklch(0.255 0.006 110);
+    --stroke: oklch(0.315 0.006 110); --ink: oklch(0.955 0.004 110); --muted: oklch(0.74 0.01 110);
+    --subtle: oklch(0.29 0.006 110); --warn: oklch(0.82 0.13 80); --err: oklch(0.75 0.15 27);
+    --taskbar: oklch(0.2 0.005 110 / 0.92); --tray-ink: oklch(0.97 0 0);
+    --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: oklch(0.15 0.004 110); --mica: oklch(0.205 0.006 110); --layer: oklch(0.255 0.006 110);
+  --stroke: oklch(0.315 0.006 110); --ink: oklch(0.955 0.004 110); --muted: oklch(0.74 0.01 110);
+  --subtle: oklch(0.29 0.006 110); --warn: oklch(0.82 0.13 80); --err: oklch(0.75 0.15 27);
+  --taskbar: oklch(0.2 0.005 110 / 0.92); --tray-ink: oklch(0.97 0 0);
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+/* Per-direction brand colors (fixed: the icon never follows the Windows accent). */
+.dA { --b: oklch(0.5 0.115 118);  --b-hi: oklch(0.62 0.13 116); --b-lo: oklch(0.38 0.09 120); --b-soft: oklch(0.93 0.04 115); }
+.dB { --b: oklch(0.5 0.09 215);   --b-hi: oklch(0.63 0.1 205);  --b-lo: oklch(0.36 0.07 225); --b-soft: oklch(0.93 0.03 210); }
+.dD { --b: oklch(0.27 0.02 250);  --b-hi: oklch(0.38 0.03 250); --b-lo: oklch(0.2 0.02 250);  --b-soft: oklch(0.92 0.01 250); --b2: oklch(0.78 0.15 72); }
+.dC { --b: oklch(0.27 0.02 250);  --b-hi: oklch(0.38 0.03 250); --b-lo: oklch(0.2 0.02 250);  --b-soft: oklch(0.92 0.01 250); --b2: oklch(0.78 0.15 72); }
+
+* { box-sizing: border-box; }
+html, body { background: var(--page); }
+body { margin: 0; color: var(--ink); font: 14px/20px var(--font); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+.page { max-width: 1120px; margin: 0 auto; padding: 40px 16px 80px; }
+.page-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; margin-bottom: 40px; }
+.page-head h1 { font: 600 28px/36px var(--font-display); margin: 0 0 4px; letter-spacing: -0.01em; }
+.page-head p { margin: 0; color: var(--muted); max-width: 64ch; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--subtle); color: var(--ink); font-weight: 600; }
+
+.dir { margin: 0 0 72px; }
+.dir-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
+.dir-letter { font: 600 15px/20px var(--font); width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--b); color: white; flex: none; transform: translateY(4px); }
+.dir-head h2 { font: 600 20px/28px var(--font-display); margin: 0; }
+.dir > p { margin: 0 0 20px 42px; color: var(--muted); max-width: 72ch; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.card { background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; padding: 20px; min-width: 0; }
+.card h3 { font: 600 12px/16px var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 16px; }
+
+/* App icon: Fluent-style plate, light from the top. */
+.hero { display: flex; gap: 24px; align-items: end; flex-wrap: wrap; }
+.plate { border-radius: 22%; display: grid; place-items: center; color: white;
+  background: linear-gradient(160deg, var(--b-hi), var(--b) 55%, var(--b-lo));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25), 0 1px 2px oklch(0 0 0 / 0.2), 0 6px 16px oklch(0 0 0 / 0.14); }
+.plate svg { width: 64%; height: 64%; }
+.sizes { display: flex; gap: 16px; align-items: end; }
+.sizes figure { margin: 0; display: grid; justify-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+
+/* Tray: real 16px glyphs, monochrome like the other system icons. */
+.taskbar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; height: 48px; padding: 0 12px; border-radius: 8px;
+  background: var(--taskbar); border: 1px solid var(--stroke); color: var(--tray-ink); }
+.taskbar .ti { width: 32px; height: 40px; display: grid; place-items: center; border-radius: 4px; }
+.taskbar .ti.on { background: var(--subtle); }
+.taskbar svg.sys { width: 16px; height: 16px; opacity: 0.85; }
+.taskbar .clock { font-size: 12px; line-height: 16px; text-align: right; padding: 0 6px 0 10px; }
+.states { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.state { display: grid; justify-items: center; gap: 8px; padding: 12px 4px; border-radius: 6px; background: var(--subtle); color: var(--tray-ink); font-size: 11px; line-height: 14px; text-align: center; }
+.state span { color: var(--muted); }
+.zoom { image-rendering: pixelated; }
+
+/* Wordmark */
+.lockup { display: flex; align-items: center; gap: 12px; }
+.lockup .name { font: 600 34px/1 var(--font-display); letter-spacing: -0.02em; }
+.lockup.sm .name { font-size: 20px; }
+.lockup .mk { color: var(--b); }
+:root[data-theme="dark"] .dC .lockup .mk, :root[data-theme="dark"] .dD .lockup .mk { color: var(--ink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dC .lockup .mk, :root:not([data-theme="light"]) .dD .lockup .mk { color: var(--ink); } }
+.tag { margin: 14px 0 0; color: var(--muted); }
+
+.swatches { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.sw { width: 56px; display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
+.sw i { display: block; height: 32px; border-radius: 4px; border: 1px solid var(--stroke); }
+
+/* README header */
+.readme { border: 1px solid var(--stroke); border-radius: 8px; overflow: hidden; }
+.readme .bar { height: 32px; background: var(--subtle); border-bottom: 1px solid var(--stroke); display: flex; align-items: center; padding: 0 12px; font-size: 12px; color: var(--muted); }
+.readme .body { padding: 20px; background: var(--layer); }
+.readme p { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+
+.verdict { margin: 16px 0 0 42px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; max-width: 72ch; font-size: 13px; }
+.verdict b { font-weight: 600; }
+.verdict span { color: var(--muted); }
+@media (max-width: 600px) { .dir > p, .verdict { margin-left: 0; } .states { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<!-- Marks on a 24-unit grid, stroke-based so they hint cleanly at 16px. currentColor throughout. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- A: Crossing. Two shores, the trip arcs between them, the laptop rides the top. -->
+    <symbol id="mA" viewBox="0 0 24 24">
+      <path d="M2.5 19.5h4.5M17 19.5h4.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M5.5 16Q12 1 18.5 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 2.4"/>
+      <circle cx="14.2" cy="9.2" r="3" fill="currentColor"/>
+    </symbol>
+    <!-- B: Hull. A ferry carrying stacked blocks of data over a water line. -->
+    <symbol id="mB" viewBox="0 0 24 24">
+      <rect x="6" y="5" width="7" height="3.4" rx="1" fill="currentColor"/>
+      <rect x="6" y="9.6" width="12" height="3.4" rx="1" fill="currentColor"/>
+      <path d="M2.8 14.6h18.4l-2.6 4.6H5.4z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
+      <path d="M3 21.6q2.25-1.2 4.5 0t4.5 0t4.5 0t4.5 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+    </symbol>
+    <!-- D: Hull in ink and amber. The top block is the cargo in transit. -->
+    <symbol id="mD" viewBox="0 0 24 24">
+      <rect x="6" y="5" width="7" height="3.4" rx="1" fill="var(--b2)"/>
+      <rect x="6" y="9.6" width="12" height="3.4" rx="1" fill="currentColor"/>
+      <path d="M2.8 14.6h18.4l-2.6 4.6H5.4z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
+      <path d="M3 21.6q2.25-1.2 4.5 0t4.5 0t4.5 0t4.5 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+    </symbol>
+    <!-- C: Route. Office and home as two ports, the route between, the laptop on it. -->
+    <symbol id="mC" viewBox="0 0 24 24">
+      <path d="M6 7.5C6 15 18 9 18 16.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="6" cy="5" r="2.8" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <circle cx="18" cy="19" r="2.8" fill="currentColor"/>
+    </symbol>
+    <symbol id="mC-cargo" viewBox="0 0 24 24">
+      <rect x="9.3" y="9.3" width="5.4" height="5.4" rx="1.2" transform="rotate(-30 12 12)" fill="var(--b2)"/>
+    </symbol>
+
+    <!-- tray badges, drawn bottom-right like Windows overlays -->
+    <symbol id="bWarn" viewBox="0 0 24 24"><circle cx="19" cy="19" r="5.6" fill="var(--taskbar-solid, #888)" /><circle cx="19" cy="19" r="4.2" fill="var(--warn)"/></symbol>
+    <symbol id="bPause" viewBox="0 0 24 24"><rect x="13" y="13" width="11" height="11" rx="3" fill="var(--subtle)"/><path d="M16.8 15.8v5.4M20.2 15.8v5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+
+    <!-- generic system tray glyphs for context -->
+    <symbol id="sWifi" viewBox="0 0 16 16"><path d="M1.5 6a9.5 9.5 0 0 1 13 0M3.8 8.5a6 6 0 0 1 8.4 0M6 11a2.8 2.8 0 0 1 4 0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="13.2" r="0.9" fill="currentColor"/></symbol>
+    <symbol id="sVol" viewBox="0 0 16 16"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5M12.3 3.7a6 6 0 0 1 0 8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+    <symbol id="sBat" viewBox="0 0 16 16"><rect x="1" y="4.5" width="12.5" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2.6" y="6.1" width="7" height="3.8" rx="0.6" fill="currentColor"/><path d="M15 7v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1>Ferry brand directions</h1>
+      <p>Three marks for the app icon, tray, and README. The window UI keeps following the Windows accent; these colors only live in the icon and outside the app. The tray glyphs are drawn at a real 16&nbsp;px.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" data-t="" aria-pressed="true">System</button>
+      <button type="button" data-t="light" aria-pressed="false">Light</button>
+      <button type="button" data-t="dark" aria-pressed="false">Dark</button>
+    </div>
+  </header>
+
+  <section class="dir dD" data-m="mD">
+    <div class="dir-head"><span class="dir-letter">✓</span><h2>Hull, ink and amber</h2></div>
+    <p>B's ferry on C's ink plate. The amber block is the cargo on board: it shows on the app icon and lights up in the tray only while Ferry is carrying data.</p>
+    <div class="grid"></div>
+  </section>
+
+  <section class="dir dA" data-m="mA">
+    <div class="dir-head"><span class="dir-letter">A</span><h2>Crossing</h2></div>
+    <p>Two shores and the trip between them. The dotted arc is the route the laptop takes; the dot riding on top is what it carries. Keeps the olive already in the window mockup.</p>
+    <div class="grid"></div>
+    <div class="verdict"><b>For</b><span>Reads as "between two places" with no explanation. Most distinct in the tray.</span><b>Against</b><span>The dotted arc softens at 16&nbsp;px; tray version uses a solid arc.</span></div>
+  </section>
+
+  <section class="dir dB" data-m="mB">
+    <div class="dir-head"><span class="dir-letter">B</span><h2>Hull</h2></div>
+    <p>A literal ferry with cargo on deck. The two blocks are data being carried; the shorter top block hints at the fill-to-cap meter. Harbor blue-teal.</p>
+    <div class="grid"></div>
+    <div class="verdict"><b>For</b><span>Instantly says "ferry"; the cargo blocks can echo the meter segments in the UI.</span><b>Against</b><span>Boat icons are common; risks looking like a shipping or travel app.</span></div>
+  </section>
+
+  <section class="dir dC" data-m="mC">
+    <div class="dir-head"><span class="dir-letter">C</span><h2>Route</h2></div>
+    <p>Office (open ring) to home (filled dot), joined by the route. The amber square is the laptop in transit and appears only on the app icon and while carrying. Ink plate, amber signal.</p>
+    <div class="grid"></div>
+    <div class="verdict"><b>For</b><span>Abstract and calm; open-to-filled says "home is the goal, the mirror".</span><b>Against</b><span>Less obviously a ferry; leans on the name to carry meaning.</span></div>
+  </section>
+</div>
+
+<script>
+// Theme toggle
+for (const b of document.querySelectorAll('.seg button')) b.onclick = () => {
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  b.dataset.t ? document.documentElement.dataset.theme = b.dataset.t : delete document.documentElement.dataset.theme;
+};
+
+const use = (id, extra = '') => `<use href="#${id}" ${extra}/>`;
+const mark = (m, size, cargo) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${use(m)}${cargo && m === 'mC' ? use('mC-cargo') : ''}</svg>`;
+// 16px tray glyph; A uses a solid arc there so it survives the pixel grid.
+const tray = (m, badge, accent) => {
+  const body = m === 'mA'
+    ? `<path d="M2 19.5h5M17 19.5h5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M5.5 16Q12 1.5 18.5 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="14.2" cy="9.4" r="3.6" fill="${accent ? 'var(--b)' : 'currentColor'}"/>`
+    : m === 'mC' ? `${use(m)}${accent ? `<rect x="8.8" y="8.8" width="6.4" height="6.4" rx="1.4" transform="rotate(-30 12 12)" fill="var(--b2)"/>` : ''}`
+    : m === 'mD' ? (accent ? use('mD') : use('mB'))
+    : `<g ${accent ? 'style="color:var(--b-hi)"' : ''}>${use(m)}</g>`;
+  return `<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">${body}${badge ? use(badge) : ''}</svg>`;
+};
+
+for (const sec of document.querySelectorAll('.dir')) {
+  const m = sec.dataset.m, g = sec.querySelector('.grid');
+  const cls = sec.classList[1];
+  g.innerHTML = `
+    <div class="card">
+      <h3>App icon</h3>
+      <div class="hero">
+        <div class="plate" style="width:128px;height:128px">${mark(m, 82, true)}</div>
+        <div class="sizes">
+          ${[48, 32, 24].map(s => `<figure><div class="plate" style="width:${s}px;height:${s}px">${mark(m, Math.round(s * .64), s >= 32)}</div><figcaption>${s}</figcaption></figure>`).join('')}
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="sw"><i style="background:var(--b-hi)"></i>hi</div>
+        <div class="sw"><i style="background:var(--b)"></i>brand</div>
+        <div class="sw"><i style="background:var(--b-lo)"></i>lo</div>
+        <div class="sw"><i style="background:var(--b-soft)"></i>soft</div>
+        ${cls === 'dC' || cls === 'dD' ? '<div class="sw"><i style="background:var(--b2)"></i>signal</div>' : ''}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Tray, 16 px</h3>
+      <div class="taskbar">
+        <div class="ti on">${tray(m)}</div>
+        <div class="ti"><svg class="sys"><use href="#sWifi"/></svg></div>
+        <div class="ti"><svg class="sys"><use href="#sVol"/></svg></div>
+        <div class="ti"><svg class="sys"><use href="#sBat"/></svg></div>
+        <div class="clock">14:32<br>16/10/2026</div>
+      </div>
+      <div class="states">
+        <div class="state">${tray(m)}<span>Idle,<br>caught up</span></div>
+        <div class="state">${tray(m, '', true)}<span>Carrying</span></div>
+        <div class="state">${tray(m, 'bWarn')}<span>Needs<br>attention</span></div>
+        <div class="state">${tray(m, 'bPause')}<span>Paused</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Wordmark</h3>
+      <div class="lockup"><span class="mk">${mark(m, 40, true)}</span><span class="name">Ferry</span></div>
+      <p class="tag">Mirror one server to another by carrying the files on your laptop.</p>
+      <div style="height:20px"></div>
+      <div class="readme">
+        <div class="bar">README.md</div>
+        <div class="body">
+          <div class="lockup sm"><span class="mk">${mark(m, 26, true)}</span><span class="name">Ferry</span></div>
+          <p>Sneakernet sync for two Unraid servers. Your laptop carries the bulk data; Tailscale carries only the file lists.</p>
+        </div>
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>

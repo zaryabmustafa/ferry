@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 300" width="1280" height="300">
+  <title>How a trip works: fill at the source, unload at the destination</title>
+  <rect x="1" y="1" width="1278" height="298" rx="24" fill="#fbfcfc" stroke="#d7d9dc" stroke-width="2"/>
+  <g font-family="'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif" text-anchor="middle">
+
+    <!-- Source -->
+    <g transform="translate(200 0)">
+      <circle cx="0" cy="104" r="56" fill="#e6e8ea"/>
+      <g transform="translate(-28.8 75.2) scale(2.4)" fill="none" stroke="#16191c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="3.5" width="16" height="7.5" rx="1.5"/><rect x="4" y="13" width="16" height="7.5" rx="1.5"/><path d="M7.5 7.25h.01M7.5 16.75h.01M11 7.25h5.5M11 16.75h5.5"/>
+      </g>
+      <text y="200" font-size="28" font-weight="600" fill="#16191c">Source server</text>
+      <text y="234" font-size="20" fill="#4e5358">The folders you choose</text>
+    </g>
+
+    <!-- arrow 1: 280 → 560 -->
+    <g transform="translate(284 104)">
+      <path d="M0 0h268" stroke="#c46d00" stroke-width="4" stroke-linecap="round"/>
+      <path d="M256 -10l14 10l-14 10" fill="none" stroke="#c46d00" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="136" y="-20" font-size="22" font-weight="600" fill="#16191c">Fill</text>
+      <text x="136" y="36" font-size="18" fill="#4e5358">on the source network</text>
+    </g>
+
+    <!-- Laptop -->
+    <g transform="translate(640 0)">
+      <circle cx="0" cy="104" r="56" fill="#e69825" fill-opacity="0.2"/>
+      <g transform="translate(-28.8 75.2) scale(2.4)" fill="none" stroke="#16191c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="5" width="14" height="10" rx="1.5"/>
+        <path d="M2.5 18.5h19"/>
+      </g>
+      <rect x="-10" y="92" width="20" height="10" rx="2.5" fill="#e69825"/>
+      <text y="200" font-size="28" font-weight="600" fill="#16191c">Laptop</text>
+      <text y="234" font-size="20" fill="#4e5358">Carries up to a cap you set</text>
+    </g>
+
+    <!-- arrow 2: 720 → 1000 -->
+    <g transform="translate(724 104)">
+      <path d="M0 0h268" stroke="#c46d00" stroke-width="4" stroke-linecap="round"/>
+      <path d="M256 -10l14 10l-14 10" fill="none" stroke="#c46d00" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="136" y="-20" font-size="22" font-weight="600" fill="#16191c">Unload</text>
+      <text x="136" y="36" font-size="18" fill="#4e5358">verified, then freed</text>
+    </g>
+
+    <!-- Destination -->
+    <g transform="translate(1080 0)">
+      <circle cx="0" cy="104" r="56" fill="#e6e8ea"/>
+      <g transform="translate(-28.8 75.2) scale(2.4)" fill="none" stroke="#16191c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="3.5" width="16" height="7.5" rx="1.5"/><rect x="4" y="13" width="16" height="7.5" rx="1.5"/><path d="M7.5 7.25h.01M7.5 16.75h.01M11 7.25h5.5M11 16.75h5.5"/>
+      </g>
+      <text y="200" font-size="28" font-weight="600" fill="#16191c">Destination server</text>
+      <text y="234" font-size="20" fill="#4e5358">Becomes an exact copy</text>
+    </g>
+
+    <text x="640" y="278" font-size="18" fill="#4e5358">File contents move only when Ferry can confirm the path stays on the local network.</text>
+  </g>
+</svg>

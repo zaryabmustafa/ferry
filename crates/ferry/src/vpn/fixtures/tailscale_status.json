@@ -1,0 +1,220 @@
+{
+  "Version": "1.102.4",
+  "TUN": true,
+  "BackendState": "Running",
+  "HaveNodeKey": true,
+  "AuthURL": "",
+  "TailscaleIPs": [
+    "100.64.0.1",
+    "fd7a:115c:a1e0::1"
+  ],
+  "Self": {
+    "ID": "nPLACEHOLDER1CNTRL",
+    "NodeID": 1,
+    "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000001",
+    "HostName": "LAPTOP",
+    "DNSName": "laptop.example-tailnet.ts.net.",
+    "OS": "windows",
+    "UserID": 1001,
+    "TailscaleIPs": [
+      "100.64.0.1",
+      "fd7a:115c:a1e0::1"
+    ],
+    "AllowedIPs": [
+      "100.64.0.1/32",
+      "fd7a:115c:a1e0::1/128"
+    ],
+    "Addrs": [
+      "192.0.2.150:41641",
+      "203.0.113.220:41641"
+    ],
+    "CurAddr": "",
+    "Relay": "fra",
+    "PeerRelay": "",
+    "RxBytes": 0,
+    "TxBytes": 0,
+    "Created": "2026-10-16T09:00:00Z",
+    "LastWrite": "2026-10-16T09:00:00Z",
+    "LastSeen": "0001-01-01T00:00:00Z",
+    "LastHandshake": "2026-10-16T09:00:00Z",
+    "Online": true,
+    "ExitNode": false,
+    "ExitNodeOption": false,
+    "Active": true,
+    "PeerAPIURL": [
+      "http://100.64.0.1:45312"
+    ],
+    "TaildropTarget": 4,
+    "NoFileSharingReason": "",
+    "Capabilities": [],
+    "CapMap": {},
+    "InNetworkMap": true,
+    "InMagicSock": true,
+    "InEngine": true,
+    "KeyExpiry": "2026-10-16T09:00:00Z"
+  },
+  "Health": [],
+  "MagicDNSSuffix": "example-tailnet.ts.net",
+  "CurrentTailnet": {
+    "Name": "example.com",
+    "MagicDNSSuffix": "example-tailnet.ts.net",
+    "MagicDNSEnabled": true
+  },
+  "CertDomains": [
+    "laptop.example-tailnet.ts.net"
+  ],
+  "ExtraRecords": null,
+  "Peer": {
+    "nodekey:0000000000000000000000000000000000000000000000000000000000000002": {
+      "ID": "nPLACEHOLDER2CNTRL",
+      "NodeID": 2,
+      "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000002",
+      "HostName": "office-nas",
+      "DNSName": "office-nas.example-tailnet.ts.net.",
+      "OS": "linux",
+      "UserID": 1001,
+      "TailscaleIPs": [
+        "100.64.0.2",
+        "fd7a:115c:a1e0::2"
+      ],
+      "AllowedIPs": [
+        "100.64.0.2/32",
+        "fd7a:115c:a1e0::2/128",
+        "192.0.2.0/24",
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "PrimaryRoutes": [
+        "192.0.2.0/24"
+      ],
+      "Addrs": [
+        "192.0.2.10:41641",
+        "203.0.113.200:41641"
+      ],
+      "CurAddr": "192.0.2.10:41641",
+      "Relay": "fra",
+      "PeerRelay": "",
+      "RxBytes": 0,
+      "TxBytes": 0,
+      "Created": "2026-10-16T09:00:00Z",
+      "LastWrite": "2026-10-16T09:00:00Z",
+      "LastSeen": "0001-01-01T00:00:00Z",
+      "LastHandshake": "2026-10-16T09:00:00Z",
+      "Online": true,
+      "ExitNode": false,
+      "ExitNodeOption": true,
+      "Active": true,
+      "PeerAPIURL": [
+        "http://100.64.0.2:45312"
+      ],
+      "TaildropTarget": 4,
+      "NoFileSharingReason": "",
+      "CapMap": {},
+      "InNetworkMap": true,
+      "InMagicSock": true,
+      "InEngine": true
+    },
+    "nodekey:0000000000000000000000000000000000000000000000000000000000000003": {
+      "ID": "nPLACEHOLDER3CNTRL",
+      "NodeID": 3,
+      "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000003",
+      "HostName": "home-nas",
+      "DNSName": "home-nas.example-tailnet.ts.net.",
+      "OS": "linux",
+      "UserID": 1001,
+      "TailscaleIPs": [
+        "100.64.0.3",
+        "fd7a:115c:a1e0::3"
+      ],
+      "AllowedIPs": [
+        "100.64.0.3/32",
+        "fd7a:115c:a1e0::3/128",
+        "198.51.100.0/24",
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "PrimaryRoutes": [
+        "198.51.100.0/24"
+      ],
+      "Addrs": null,
+      "CurAddr": "",
+      "Relay": "fra",
+      "PeerRelay": "",
+      "RxBytes": 0,
+      "TxBytes": 0,
+      "Created": "2026-10-16T09:00:00Z",
+      "LastWrite": "2026-10-16T09:00:00Z",
+      "LastSeen": "2026-10-16T09:00:00Z",
+      "LastHandshake": "2026-10-16T09:00:00Z",
+      "Online": false,
+      "ExitNode": false,
+      "ExitNodeOption": true,
+      "Active": false,
+      "PeerAPIURL": [
+        "http://100.64.0.3:45312"
+      ],
+      "TaildropTarget": 4,
+      "NoFileSharingReason": "",
+      "CapMap": {},
+      "InNetworkMap": true,
+      "InMagicSock": true,
+      "InEngine": true
+    },
+    "nodekey:0000000000000000000000000000000000000000000000000000000000000004": {
+      "ID": "nPLACEHOLDER4CNTRL",
+      "NodeID": 4,
+      "PublicKey": "nodekey:0000000000000000000000000000000000000000000000000000000000000004",
+      "HostName": "lab-nas",
+      "DNSName": "lab-nas.example-tailnet.ts.net.",
+      "OS": "linux",
+      "UserID": 1001,
+      "TailscaleIPs": [
+        "100.64.0.4",
+        "fd7a:115c:a1e0::4"
+      ],
+      "AllowedIPs": [
+        "100.64.0.4/32",
+        "fd7a:115c:a1e0::4/128",
+        "203.0.113.0/24",
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "PrimaryRoutes": [
+        "203.0.113.0/24"
+      ],
+      "Addrs": [
+        "203.0.113.207:41641"
+      ],
+      "CurAddr": "",
+      "Relay": "fra",
+      "PeerRelay": "",
+      "RxBytes": 0,
+      "TxBytes": 0,
+      "Created": "2026-10-16T09:00:00Z",
+      "LastWrite": "2026-10-16T09:00:00Z",
+      "LastSeen": "0001-01-01T00:00:00Z",
+      "LastHandshake": "2026-10-16T09:00:00Z",
+      "Online": true,
+      "ExitNode": false,
+      "ExitNodeOption": true,
+      "Active": true,
+      "PeerAPIURL": [
+        "http://100.64.0.4:45312"
+      ],
+      "TaildropTarget": 4,
+      "NoFileSharingReason": "",
+      "CapMap": {},
+      "InNetworkMap": true,
+      "InMagicSock": true,
+      "InEngine": true
+    }
+  },
+  "User": {
+    "1001": {
+      "ID": 1001,
+      "LoginName": "owner@example.com",
+      "DisplayName": "Example Owner"
+    }
+  },
+  "ClientVersion": null
+}

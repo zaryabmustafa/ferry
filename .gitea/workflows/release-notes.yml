@@ -1,0 +1,29 @@
+# Rewrite the notes of every published release from the commit history (run by hand, for example
+# after changing changelog.sh). New releases get their notes from build.yml.
+name: Release notes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  notes:
+    name: Notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare the runner
+        run: bash .gitea/scripts/prepare.sh curl jq
+
+      - name: Write the notes
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          for tag in $(git tag -l 'v*' --sort=version:refname); do
+            TAG=$tag bash .gitea/scripts/release.sh
+          done

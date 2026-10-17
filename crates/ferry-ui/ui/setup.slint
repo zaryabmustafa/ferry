@@ -1,0 +1,262 @@
+// `ferry-ui --setup`: mockup A. Pages live in setup/pages.slint, state in setup/state.slint.
+import { Theme } from "theme.slint";
+import { Icon, Wordmark, Btn } from "flyout.slint";
+import { ScrollView } from "std-widgets.slint";
+import { S, Note } from "setup/state.slint";
+import { PageTitle, Caption, NavItem, NoteView, SettingRow, Toggle, Panel } from "setup/controls.slint";
+import { StatusPage, FoldersPage, LocationsPage, ActivityPage, SettingsPage, ServerCard, FolderForm } from "setup/pages.slint";
+
+export { S }
+
+// The sidebar. No brand mark: the title bar already shows Ferry's icon and name.
+component Nav inherits VerticalLayout {
+    width: 232px;
+    padding: 8px;
+    spacing: 2px;
+    accessible-role: tab-list;
+    accessible-label: "Sections";
+
+    HorizontalLayout {
+        padding: 10px;
+        padding-bottom: 16px;
+        spacing: 12px;
+        VerticalLayout { alignment: center; Icon { text: "\u{E7F8}"; font-size: 20px; width: 20px; color: Theme.ink; } }
+        VerticalLayout {
+            alignment: center;
+            Text { text: S.computer; color: Theme.ink; font-weight: 600; overflow: elide; }
+            Caption { text: S.source-place + " → " + S.destination-place; wrap: no-wrap; overflow: elide; }
+        }
+    }
+    NavItem { icon: "\u{E946}"; text: "Status"; current: S.page == 0; clicked => { S.go(0); } }
+    NavItem {
+        icon: "\u{E8B7}";
+        text: "Folders";
+        count: S.pairs.length > 0 ? S.pairs.length : "";
+        current: S.page == 1;
+        clicked => { S.go(1); }
+    }
+    NavItem { icon: "\u{E707}"; text: "Locations"; current: S.page == 2; clicked => { S.go(2); } }
+    NavItem {
+        icon: "\u{E81C}";
+        text: "Activity";
+        count: S.held.length > 0 ? S.held.length + " waiting" : "";
+        current: S.page == 3;
+        clicked => { S.go(3); }
+    }
+    Rectangle { vertical-stretch: 1; }
+    NavItem { icon: "\u{E713}"; text: "Settings"; count: S.update-state == 2 ? "Update" : ""; current: S.page == 4; clicked => { S.go(4); } }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-top: 6px;
+        Caption { text: "Ferry " + S.version; wrap: no-wrap; }
+    }
+}
+
+// One entry in the first run's step list: a numbered disc that turns into a check once done.
+component StepItem inherits HorizontalLayout {
+    in property <int> n;
+    in property <string> text;
+    property <bool> done: S.step > root.n;
+    property <bool> current: S.step == root.n;
+    spacing: 12px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    accessible-role: list-item;
+    accessible-label: "Step " + (root.n + 1) + ", " + root.text + (root.done ? ", done" : root.current ? ", current" : "");
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 24px;
+            height: 24px;
+            border-radius: 12px;
+            background: root.done ? Theme.accent : transparent;
+            border-width: root.done ? 0 : root.current ? 2px : 1px;
+            border-color: root.current ? Theme.accent : Theme.muted;
+            if root.done: Icon { width: 24px; height: 24px; text: "\u{E73E}"; font-size: 12px; color: Theme.accent-ink; }
+            if !root.done: Text {
+                width: 24px;
+                height: 24px;
+                text: root.n + 1;
+                font-size: 12px;
+                font-weight: 600;
+                color: root.current ? Theme.ink : Theme.muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                accessible-role: none;
+            }
+        }
+    }
+    Text {
+        text: root.text;
+        vertical-alignment: center;
+        color: root.done || root.current ? Theme.ink : Theme.muted;
+        font-weight: root.current ? 600 : 400;
+        accessible-role: none;
+    }
+}
+
+component FirstRun inherits ScrollView {
+    content-width: self.visible-width;
+    content-height: col.preferred-height;
+    col := VerticalLayout {
+        width: root.visible-width;
+        padding-left: 40px;
+        padding-right: 40px;
+        padding-top: 32px;
+        padding-bottom: 40px;
+        spacing: 32px;
+        HorizontalLayout {
+            alignment: start;
+            Wordmark { text: "Set up Ferry"; font-size: 28px; }
+        }
+        HorizontalLayout {
+            spacing: 48px;
+            VerticalLayout {
+                width: 184px;
+                alignment: start;
+                accessible-role: list;
+                accessible-label: "Setup steps";
+                StepItem { n: 0; text: "Source server"; }
+                StepItem { n: 1; text: "Destination server"; }
+                StepItem { n: 2; text: "This network"; }
+                StepItem { n: 3; text: "First folder"; }
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                max-width: 640px;
+                alignment: start;
+                spacing: 16px;
+                VerticalLayout {
+                    spacing: 4px;
+                    Text {
+                        text: ["Source server", "Destination server", "Where is the laptop now?", "First folder", "What happens next"][S.step];
+                        font-family: Theme.font-display;
+                        font-size: 20px;
+                        font-weight: 600;
+                        color: Theme.ink;
+                        accessible-role: text;
+                        accessible-label: self.text;
+                    }
+                    Text {
+                        text: [
+                            "The server whose folders Ferry copies.",
+                            "The server that becomes an exact copy.",
+                            "Ferry recognizes " + S.source-place + " and " + S.destination-place + " by their networks. Tell it which one the laptop is on now and it remembers this network's router.",
+                            "A folder on " + S.source-place + " to carry to " + S.destination-place + ". You can add more, and change their order, later.",
+                            S.closing,
+                        ][S.step];
+                        color: S.step == 4 ? Theme.ink : Theme.muted;
+                        wrap: word-wrap;
+                    }
+                }
+                if S.load-note.text != "": NoteView { note: S.load-note; }
+                if !S.running: NoteView {
+                    note: { text: "Ferry isn't running. Start it so it can store passwords and test connections.", kind: 2 };
+                }
+                if !S.running: HorizontalLayout {
+                    alignment: start;
+                    Btn { text: "Start Ferry"; clicked => { S.start-engine(); } }
+                }
+
+                if S.step == 0: ServerCard {
+                    init => { self.focus(); }
+                    full: false;
+                    side: 0;
+                    title: "Source server";
+                    name-placeholder: "e.g. Office";
+                    target: "Ferry\u{2060}/\u{2060}office";
+                    lan-placeholder: "192.0.2.10";
+                    ts-placeholder: "source-nas";
+                    note: S.source-note;
+                    server-name <=> S.source-name;
+                    lan <=> S.source-lan;
+                    ts <=> S.source-ts;
+                    user <=> S.source-user;
+                    pass <=> S.source-pass;
+                }
+                if S.step == 1: ServerCard {
+                    init => { self.focus(); }
+                    full: false;
+                    side: 1;
+                    title: "Destination server";
+                    name-placeholder: "e.g. Home";
+                    target: "Ferry\u{2060}/\u{2060}home";
+                    lan-placeholder: "192.0.2.20";
+                    ts-placeholder: "destination-nas";
+                    note: S.destination-note;
+                    server-name <=> S.destination-name;
+                    lan <=> S.destination-lan;
+                    ts <=> S.destination-ts;
+                    user <=> S.destination-user;
+                    pass <=> S.destination-pass;
+                }
+                if S.step == 2 && S.sneakernet: Text {
+                    text: "Without remote addresses Ferry works offline: it records what's on " + S.destination-place + " when you're there and carries that list to " + S.source-place + ".";
+                    color: Theme.ink;
+                    wrap: word-wrap;
+                }
+                if S.step == 2 && S.sneakernet: SettingRow {
+                    title: S.destination-place + " is empty right now";
+                    body: S.destination-empty
+                        ? "Ferry starts carrying at " + S.source-place + " right away."
+                        : "Ferry starts after one visit to " + S.destination-place + ", where it records what's there.";
+                    Toggle {
+                        label: S.destination-place + " is empty right now";
+                        checked: S.destination-empty;
+                        toggled => { S.set-destination-empty(!S.destination-empty); }
+                    }
+                }
+                if S.step == 2 && S.sneakernet && S.destination-empty-note.text != "": NoteView { note: S.destination-empty-note; }
+                if S.step == 2: HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Btn { icon: "\u{E731}"; text: "Remember as " + S.source-place + " network"; clicked => { S.remember(0); } }
+                    Btn { icon: "\u{E80F}"; text: "Remember as " + S.destination-place + " network"; clicked => { S.remember(1); } }
+                }
+                if S.step == 2 && S.remember-note.text != "": NoteView { note: S.remember-note; }
+                if S.step == 3: FolderForm { }
+                if S.step == 4 && S.folders-note.text != "": NoteView { note: S.folders-note; }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    padding-top: 8px;
+                    if S.step > 0: Btn { text: "Back"; label: "Back to the previous step"; clicked => { S.back(); } }
+                    if S.step == 0: Btn { primary: true; text: "Continue to destination server"; clicked => { S.next(); } }
+                    if S.step == 1: Btn { primary: true; text: "Continue to this network"; clicked => { S.next(); } }
+                    if S.step == 3: Btn { primary: true; text: S.adding ? "Add folder" : "Save folder"; clicked => { S.next(); } }
+                    if S.step == 4: Btn { primary: true; text: "Open Ferry"; init => { self.focus(); } clicked => { S.next(); } }
+                    if S.step == 2 || S.step == 3: Btn { ghost: true; text: "Skip for now"; clicked => { S.skip(); } }
+                }
+            }
+        }
+    }
+}
+
+export component Setup inherits Window {
+    title: "Ferry";
+    preferred-width: 1000px;
+    preferred-height: 640px;
+    min-width: 760px;
+    min-height: 480px;
+    background: Theme.mica;
+    default-font-family: Theme.font;
+    default-font-size: 14px;
+
+    if S.first-run: FirstRun { }
+    // The sidebar and the page on two panels (mockups/hub-structure.html).
+    if !S.first-run: HorizontalLayout {
+        padding: 8px;
+        spacing: 8px;
+        Panel { Nav { } }
+        Panel {
+            horizontal-stretch: 1;
+            clip: true;
+            if S.page == 0: StatusPage { }
+            if S.page == 1: FoldersPage { }
+            if S.page == 2: LocationsPage { }
+            if S.page == 3: ActivityPage { }
+            if S.page == 4: SettingsPage { }
+        }
+    }
+}

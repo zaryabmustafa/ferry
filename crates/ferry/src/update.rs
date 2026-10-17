@@ -174,12 +174,14 @@ pub fn manual_failure(o: &Outcome) -> Option<String> {
     }
 }
 
-/// The activity-log line for an outcome; quiet ones (nothing new, private repo) have none.
-pub fn outcome_line(o: &Outcome) -> Option<String> {
+/// The activity-log line for an outcome; quiet ones (nothing new, private repo) have none, and
+/// neither has a failure right after another one (hourly retries while offline).
+pub fn outcome_line(o: &Outcome, failed_before: bool) -> Option<String> {
     match o {
         Outcome::UpToDate | Outcome::NotFound | Outcome::Available(_) | Outcome::Ready(..) => None,
         Outcome::BadChecksum(v) => Some(format!("update {v} failed its checksum, not installed")),
         Outcome::BadSignature(v) => Some(format!("update {v} isn't signed with Ferry's update key, not installed")),
+        Outcome::Failed(_) if failed_before => None,
         Outcome::Failed(e) => Some(format!("update check failed: {e}")),
     }
 }
@@ -233,11 +235,12 @@ mod tests {
 
     #[test]
     fn outcome_lines() {
-        assert_eq!(outcome_line(&Outcome::NotFound), None);
-        assert_eq!(outcome_line(&Outcome::UpToDate), None);
-        assert_eq!(outcome_line(&Outcome::BadChecksum("0.2.3".into())).as_deref(), Some("update 0.2.3 failed its checksum, not installed"));
-        assert_eq!(outcome_line(&Outcome::BadSignature("0.2.3".into())).as_deref(), Some("update 0.2.3 isn't signed with Ferry's update key, not installed"));
-        assert_eq!(outcome_line(&Outcome::Failed("timed out".into())).as_deref(), Some("update check failed: timed out"));
+        assert_eq!(outcome_line(&Outcome::NotFound, false), None);
+        assert_eq!(outcome_line(&Outcome::UpToDate, false), None);
+        assert_eq!(outcome_line(&Outcome::BadChecksum("0.2.3".into()), false).as_deref(), Some("update 0.2.3 failed its checksum, not installed"));
+        assert_eq!(outcome_line(&Outcome::BadSignature("0.2.3".into()), false).as_deref(), Some("update 0.2.3 isn't signed with Ferry's update key, not installed"));
+        assert_eq!(outcome_line(&Outcome::Failed("timed out".into()), false).as_deref(), Some("update check failed: timed out"));
+        assert_eq!(outcome_line(&Outcome::Failed("timed out".into()), true), None, "only the first failure in a row");
     }
 
     /// A P-256 key pair made for one test: its public point as hex, and a signer that returns

@@ -67,19 +67,22 @@ impl Drop for H {
 /// GETs `url` (following redirects) and hands the body to `sink` chunk by chunk.
 fn fetch(url: &str, timeout_ms: u32, sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>) -> Result<(), HttpError> {
     let wide: Vec<u16> = url.encode_utf16().collect();
-    let (mut host, mut path) = (vec![0u16; 256], vec![0u16; 2048]);
+    let (mut host, mut path, mut extra) = (vec![0u16; 256], vec![0u16; 2048], vec![0u16; 2048]);
     let mut uc = URL_COMPONENTS {
         dwStructSize: size_of::<URL_COMPONENTS>() as u32,
         lpszHostName: PWSTR(host.as_mut_ptr()),
         dwHostNameLength: host.len() as u32,
         lpszUrlPath: PWSTR(path.as_mut_ptr()),
         dwUrlPathLength: path.len() as u32,
+        lpszExtraInfo: PWSTR(extra.as_mut_ptr()),
+        dwExtraInfoLength: extra.len() as u32,
         ..Default::default()
     };
     unsafe { WinHttpCrackUrl(&wide, 0, &mut uc) }.map_err(|e| HttpError::Other(format!("{url} is not a valid address: {}", e.message())))?;
-    // ponytail: the query string is dropped; release URLs don't have one.
     let host = String::from_utf16_lossy(&host[..uc.dwHostNameLength as usize]);
-    let path = String::from_utf16_lossy(&path[..uc.dwUrlPathLength as usize]);
+    // The object name is the path plus the "?query" (the extra info, minus any "#fragment").
+    let extra = String::from_utf16_lossy(&extra[..uc.dwExtraInfoLength as usize]);
+    let path = String::from_utf16_lossy(&path[..uc.dwUrlPathLength as usize]) + extra.split('#').next().unwrap_or("");
     let secure = uc.nScheme == WINHTTP_INTERNET_SCHEME_HTTPS;
     let t = timeout_ms as i32;
     unsafe {
@@ -242,6 +245,22 @@ mod tests {
     #[test]
     fn http_get_reads_body() {
         assert_eq!(get(&serve("200 OK", b"hello"), 1024, 5000).unwrap(), b"hello");
+    }
+
+    #[test]
+    fn http_get_keeps_query_string() {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap();
+            // Answer with the request target, e.g. "/releases?limit=1".
+            let target = String::from_utf8_lossy(&buf[..n]).split(' ').nth(1).unwrap_or("").to_string();
+            let _ = write!(s, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{target}", target.len());
+        });
+        let url = format!("http://127.0.0.1:{port}/releases?limit=1&draft=false#notes");
+        assert_eq!(get(&url, 1024, 5000).unwrap(), b"/releases?limit=1&draft=false");
     }
 
     #[test]

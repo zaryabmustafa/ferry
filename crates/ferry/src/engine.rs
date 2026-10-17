@@ -213,6 +213,8 @@ pub struct Engine {
     update_ok_at: i64,
     /// No automatic check before this (an hour after a failed one).
     update_retry_at: i64,
+    /// The last update check failed (so the next failure isn't logged again).
+    update_failing: bool,
     /// An update check or download is running.
     updating: bool,
     /// A verified installer waiting for a moment when no trip runs: (version, path, user asked).
@@ -263,6 +265,7 @@ impl Engine {
             installed: update::installed(),
             update_ok_at: 0,
             update_retry_at: 0,
+            update_failing: false,
             updating: false,
             ready: None,
             manual_asked: false,
@@ -936,9 +939,10 @@ impl Engine {
     fn update_done(&mut self, o: Outcome, manual: bool) {
         self.updating = false;
         let manual = manual || std::mem::take(&mut self.manual_asked);
-        if let Some(line) = update::outcome_line(&o) {
+        if let Some(line) = update::outcome_line(&o, self.update_failing) {
             self.log.line(&line);
         }
+        self.update_failing = matches!(o, Outcome::Failed(_));
         if let Some(why) = update::manual_failure(&o).filter(|_| manual) {
             self.notify(None, "Ferry wasn't updated", &why);
         }

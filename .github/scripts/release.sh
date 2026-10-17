@@ -15,10 +15,12 @@ notes="Windows 10/11 (x64). Install with Ferry-Setup-$version.exe (no admin righ
 $(bash "$here/changelog.sh" "$TAG")"
 
 if gh release view "$TAG" >/dev/null 2>&1; then
-  gh release edit "$TAG" --notes "$notes" >/dev/null
-  echo "Release $TAG has its notes"
-  [[ -n "$dir" ]] || exit 0
+  [[ -n "$dir" ]] || { gh release edit "$TAG" --notes "$notes" >/dev/null; echo "Release $TAG has its notes"; exit 0; }
+  # Replacing files: back to a draft until all of them are up, so an updater never sees a
+  # SHA256SUMS.txt that doesn't match the installer beside it.
+  gh release edit "$TAG" --draft --notes "$notes" >/dev/null
   gh release upload "$TAG" "$dir"/* --clobber
+  gh release edit "$TAG" --draft=false >/dev/null
 elif [[ -n "$dir" ]]; then
   # With files, gh creates the release as a draft, uploads them, and only then publishes it, so
   # installed copies never see a release without its SHA256SUMS.txt.sig.

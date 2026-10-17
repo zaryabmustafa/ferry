@@ -425,8 +425,9 @@ export component FoldersPage inherits Page {
                                 label: "Manage " + p.id;
                                 items: [
                                     { text: "Edit folder", icon: "\u{E70F}", enabled: true },
-                                    { text: "Move up", icon: "\u{E70E}", enabled: i > 0 },
-                                    { text: "Move down", icon: "\u{E70D}", enabled: i < S.pairs.length - 1 },
+                                    // On Carrying/Off a neighbour may be hidden, so moving is only offered on All.
+                                    { text: "Move up", icon: "\u{E70E}", enabled: S.folder-filter == 0 && i > 0 },
+                                    { text: "Move down", icon: "\u{E70D}", enabled: S.folder-filter == 0 && i < S.pairs.length - 1 },
                                     { text: "Remove folder\u{2026}", icon: "\u{E74D}", enabled: true, danger: true, separator-before: true },
                                 ];
                                 activated(k) => {
@@ -645,7 +646,7 @@ export component ServerCard inherits VerticalLayout {
                 Manage {
                     label: "Manage " + n.name;
                     items: [
-                        { text: n.trusted ? "Stop trusting this VPN" : "Trust this VPN for copies", icon: "\u{E83D}", enabled: n.state != 1 && n.state != 3 },
+                        { text: n.state == 2 ? "Cancel trusting this VPN" : n.trusted ? "Stop trusting this VPN" : "Trust this VPN for copies", icon: "\u{E83D}", enabled: n.state != 1 && n.state != 3 },
                         { text: "Forget network", icon: "\u{E74D}", enabled: true, danger: true, separator-before: true },
                     ];
                     activated(k) => {

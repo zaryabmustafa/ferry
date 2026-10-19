@@ -15,6 +15,12 @@ use std::path::Path;
 use std::process::exit;
 
 fn main() {
+    // Load DLLs only from System32 from here on, not from the folder ferry.exe runs in (a
+    // portable copy in Downloads could otherwise pick up a planted one).
+    unsafe {
+        use windows::Win32::System::LibraryLoader::{SetDefaultDllDirectories, LOAD_LIBRARY_SEARCH_SYSTEM32};
+        let _ = SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
+    }
     let args: Vec<String> = std::env::args().collect();
     // The windows run in their own process so the engine never loads the renderer.
     if let Some(arg @ ("--flyout" | "--setup")) = args.get(1).map(String::as_str) {

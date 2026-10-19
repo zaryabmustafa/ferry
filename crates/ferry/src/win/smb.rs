@@ -20,7 +20,9 @@ fn os_err(e: windows::core::Error) -> io::Error {
     io::Error::from_raw_os_error((e.code().0 as u32 & 0xFFFF) as i32)
 }
 
-/// Zero secret memory in a way the optimizer cannot elide.
+/// Zero secret memory in a way the optimizer cannot elide. Best effort, for the copies made
+/// here: the pipe's buffer, the request's String and the window's text field aren't wiped.
+/// Credential Manager is where the password lives.
 fn wipe<T: Default>(buf: &mut [T]) {
     for x in buf {
         unsafe { std::ptr::write_volatile(x, T::default()) };

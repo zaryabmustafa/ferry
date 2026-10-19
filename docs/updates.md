@@ -6,7 +6,7 @@ A copy installed with `Ferry-Setup-<version>.exe` keeps itself up to date. The p
 
 1. **About once a day** Ferry asks the repository's releases API whether there is a newer release. It doesn't ask on a metered connection (a phone hotspot or metered Wi-Fi), while Ferry is paused, while a trip is running, or while a Ferry window is open.
 2. **When there is one,** it checks that the release's `SHA256SUMS.txt` is signed with Ferry's update key, downloads the installer (about 5 MB) to `%LOCALAPPDATA%\Ferry\update`, and checks it against `SHA256SUMS.txt`.
-3. **It installs silently and starts again.** A notification says "Ferry updated to X.Y.Z" and the activity log has a line for it.
+3. **It installs silently and starts again,** after checking the installer once more right before it runs (it may have waited hours for a trip to end). A notification says "Ferry updated to X.Y.Z" and the activity log has a line for it.
 
 Nothing else is downloaded, and your files never travel this way.
 
@@ -22,10 +22,11 @@ Nothing else is downloaded, and your files never travel this way.
 | What went wrong | What Ferry does |
 |---|---|
 | `SHA256SUMS.txt.sig` is missing, or isn't the update key's signature | Downloads nothing. Activity says "update X.Y.Z isn't signed with Ferry's update key, not installed". |
-| The installer fails its checksum | Deletes the download and doesn't install it. |
+| The installer fails its checksum | Deletes the download and tries again an hour later, since that is usually a download cut short. After three failures in a row it skips that version. |
+| The downloaded installer changed before it ran | Deletes it and doesn't install it. |
 | The install doesn't take | Starts the old version again. |
 
-In each case that version is skipped until a newer one comes out. Ferry also only follows installer and checksum links that use https on the same host as the releases API (or on `github.com` for `api.github.com`, where GitHub serves release files), and never installs a version older than the one it runs.
+A refused signature, three checksum failures or an install that doesn't take skips that version until a newer one comes out. Ferry also only follows installer and checksum links that use https on the same host as the releases API (or on `github.com` for `api.github.com`, where GitHub serves release files), and never installs a version older than the one it runs.
 
 ## Who can ship an update
 

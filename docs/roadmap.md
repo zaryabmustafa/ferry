@@ -6,7 +6,7 @@ What's planned, roughly in order. Nothing here has a date.
 
 - **Make the repository public.** While it is private, GitHub's releases API answers "not found", so no installed copy finds an update until it is public.
 - **Check the server's identity.** Ferry recognises a place by its router and trusts the server that answers there (see [What Ferry trusts](how-it-works.md#what-ferry-trusts)). Pin each server's identity when it is first learned, and refuse a different one. Audit finding S1.
-- **Sign the program.** Authenticode-sign `ferry.exe` and the installer, so Windows SmartScreen stops warning and a binary can be tied to its author. Audit finding S4.
+- **Sign the program.** Authenticode-sign `ferry.exe` and the installer, so Windows SmartScreen stops warning and a binary can be tied to its author. Audit finding S4. Once the repository is public, SignPath Foundation signs open-source projects built on GitHub Actions for free.
 
 ## Later
 

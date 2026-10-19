@@ -23,6 +23,7 @@ Ferry mirrors the source to the destination, including deletions, so its rules l
 
 - **Folders can't overlap.** Two folder pairs can't share a destination or have one destination inside the other, because each would delete the other's files. Setup refuses it, and a trip skips such pairs if `config.toml` was edited by hand.
 - **Odd names from a server are refused.** A listing that contains a name with a path separator, a drive or stream colon, `..` or control characters is treated as unreadable, so nothing is copied to or deleted from outside the folder because of it.
+- **A file that replaces a folder.** When a folder at the source became a file of the same name, the destination folder is in the way. If it holds only empty folders, Ferry removes it. Otherwise its files are deleted first, under the usual thresholds and confirmations, and the file lands in the same unload. Until then the folder stays and Activity says why.
 
 ## Networks
 

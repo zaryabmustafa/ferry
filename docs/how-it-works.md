@@ -102,13 +102,13 @@ Nothing is sent anywhere except to your two servers (and, if you use Tailscale, 
 
 Settings > Backup > Export saves one JSON file with `config.toml` (servers, folder pairs, learned networks, options), the cargo list, the delete queue and the destination snapshots. It has server addresses and user names but no passwords, which stay in Credential Manager.
 
-Restore is under Settings > Backup, and as Restore from a backup on the first setup screen, so a fresh install can skip setup. Ferry must be running, and it does the restore itself:
+Restore is under Settings > Backup, and as Restore from a backup in the sidebar of first-run setup, so a fresh install can skip setup. Ferry must be running, and it does the restore itself:
 
-- **It refuses while the laptop carries files or holds deletes,** because the restore would orphan them. Unload at the destination first. It also refuses during a trip; pause Ferry and try again.
-- **Carried files are kept only if they are still in the cargo folder** at the recorded size. The default cargo folder is in `%LOCALAPPDATA%`, which a Windows reinstall wipes, so those files are dropped from the list and carried again. A cargo folder on another drive survives, and its files are delivered as usual.
+- **It refuses while the laptop carries files or holds deletes,** because the restore would orphan them, and when it can't read its cargo list or delete queue to tell. Unload at the destination first. It also refuses during a trip; pause Ferry and try again.
+- **Carried files are kept only if they are still in the cargo folder** at the recorded size. The default cargo folder is in `%LOCALAPPDATA%`, which a Windows reinstall wipes, so those files are dropped from the list and carried again. Until they are, they hold their folder's deletes, so the destination keeps the old files. A cargo folder on another drive survives, and its files are delivered as usual.
 - **Snapshots come back,** so in sneakernet mode the next source visit can fill without first visiting the destination. They describe the destination as of the backup, so restore a recent one: a stale snapshot only makes Ferry carry files the destination already has, and queued deletes are still held by the usual thresholds.
 - **A backup is checked before anything is written.** One with a folder id, file or snapshot entry that would point outside Ferry's folders is refused.
-- **Then Ferry opens Locations and asks for each server's password.** Enter it and choose Save {name} server.
+- **Then Ferry opens Locations and asks for each server's password.** Enter it and choose Save on that server's card.
 
 ## Footprint
 

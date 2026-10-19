@@ -4,7 +4,12 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Read, Write};
 
-pub const PIPE: &str = r"\\.\pipe\ferry";
+/// The engine's pipe for the Windows user running this process. Pipe names are machine-wide, so
+/// with the user's SID in it each signed-in user gets their own engine.
+#[cfg(windows)]
+pub fn pipe() -> String {
+    format!(r"\\.\pipe\ferry-{}", crate::sid::current_user_sid().unwrap_or_default())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Side {

@@ -1,5 +1,5 @@
 //! Named-pipe server: one JSON request line -> one JSON response line per connection.
-use ferry_core::ipc::{decode, encode, Request, Response, PIPE};
+use ferry_core::ipc::{decode, encode, pipe, Request, Response};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::windows::io::{AsRawHandle, FromRawHandle};
@@ -25,10 +25,10 @@ const MAX_DRAIN: usize = 16 << 20;
 /// Concurrent connection threads; extra connections are dropped immediately.
 const MAX_IN_FLIGHT: usize = 8;
 
-/// Serve [`PIPE`]. The pipe is created before this returns, so a startup failure
+/// Serve this user's [`pipe`]. The pipe is created before this returns, so a startup failure
 /// (e.g. another engine already owns the name) is reported to the caller.
 pub fn serve(handler: Handler) -> io::Result<()> {
-    serve_on(PIPE, handler)
+    serve_on(&pipe(), handler)
 }
 
 fn serve_on(name: &str, handler: Handler) -> io::Result<()> {
@@ -184,12 +184,12 @@ fn drain_line(pipe: &mut File) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferry_core::ipc::{call, Phase, Request, Response, Status, PIPE};
+    use ferry_core::ipc::{call, Phase, Request, Response, Status};
     use ferry_core::location::Location;
     use std::sync::Arc;
 
     fn test_pipe() -> String {
-        PIPE.replace("ferry", &format!("ferry-test-{}", std::process::id()))
+        format!(r"\\.\pipe\ferry-test-{}", std::process::id())
     }
 
     fn start(name: &str) {

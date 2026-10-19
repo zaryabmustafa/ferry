@@ -9,7 +9,7 @@ mod update;
 mod vpn;
 mod win;
 
-use ferry_core::ipc::{self, Request, PIPE};
+use ferry_core::ipc::{self, Request};
 use ferry_core::location::{classify, locate, reason_text};
 use std::path::Path;
 use std::process::exit;
@@ -27,7 +27,7 @@ fn main() {
         None => exit(engine::run()),
         Some("--where") => print_where(args.get(2).map(Path::new)),
         // Debug aid: the running engine's Status as JSON.
-        Some("--status") => match ipc::call(PIPE, &Request::Status) {
+        Some("--status") => match ipc::call(&ipc::pipe(), &Request::Status) {
             Ok(r) => print!("{}", String::from_utf8_lossy(&ipc::encode(&r))),
             Err(e) => {
                 eprintln!("ferry --status: {e}");

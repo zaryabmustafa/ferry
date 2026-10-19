@@ -473,7 +473,7 @@ fn flyout() -> Result<(), slint::PlatformError> {
 /// screenshots of states the real one can't be put in.
 fn pipe() -> String {
     let forced = if cfg!(debug_assertions) { std::env::var("FERRY_PIPE").ok() } else { None };
-    forced.unwrap_or_else(|| ipc::PIPE.into())
+    forced.unwrap_or_else(ipc::pipe)
 }
 
 /// Starts this program again: no arguments is the engine, `--setup` the settings window.

@@ -31,8 +31,9 @@ pub enum Outcome {
     /// The releases API answered 404: no release yet, or the repository is private.
     NotFound,
     Available(Release),
-    /// Downloaded and verified, ready to run.
-    Ready(Release, PathBuf),
+    /// Downloaded and verified, ready to run; the last part is its SHA-256 (lowercase hex), to
+    /// check again just before it runs.
+    Ready(Release, PathBuf, String),
     BadChecksum(String),
     /// The release's SHA256SUMS.txt.sig is missing, or isn't `UPDATE_KEY`'s signature of it.
     BadSignature(String),
@@ -129,7 +130,7 @@ pub fn fetch(r: Release, dir: &Path) -> Outcome {
         return Outcome::Failed(format!("{name}: {e}"));
     }
     match http::sha256_file(&dest) {
-        Ok(got) if got == want => Outcome::Ready(r, dest),
+        Ok(got) if got == want => Outcome::Ready(r, dest, want),
         Ok(_) => {
             let _ = fs::remove_file(&dest);
             Outcome::BadChecksum(r.version)
@@ -153,6 +154,17 @@ pub fn after_restart(dir: &Path, running: &str) -> Option<(String, bool)> {
         skip(dir, &v);
     }
     Some((v, took))
+}
+
+/// Count a checksum mismatch for `version` in `run` (version, mismatches in a row). True on the
+/// third in a row, when the release is given up; before that it's taken for a damaged download.
+pub fn give_up_after_mismatch(run: &mut (String, u32), version: &str) -> bool {
+    if run.0 == version {
+        run.1 += 1;
+    } else {
+        *run = (version.to_string(), 1);
+    }
+    run.1 >= 3
 }
 
 pub fn skipped(dir: &Path) -> Option<String> {
@@ -231,6 +243,16 @@ mod tests {
         assert_eq!(after_restart(d.path(), "0.2.2"), None);
         assert!(!d.path().join("Ferry-Setup-0.2.3.exe.part").exists(), "stale downloads are cleared");
         assert_eq!(after_restart(&d.path().join("missing"), "0.2.2"), None);
+    }
+
+    #[test]
+    fn a_release_is_given_up_on_the_third_mismatch_in_a_row() {
+        let mut run = (String::new(), 0);
+        assert!(!give_up_after_mismatch(&mut run, "0.2.5"));
+        assert!(!give_up_after_mismatch(&mut run, "0.2.5"));
+        assert!(!give_up_after_mismatch(&mut run, "0.2.6"), "a new version starts counting again");
+        assert!(!give_up_after_mismatch(&mut run, "0.2.6"));
+        assert!(give_up_after_mismatch(&mut run, "0.2.6"));
     }
 
     #[test]
@@ -346,7 +368,7 @@ mod tests {
     #[test]
     fn manual_failures_are_told() {
         let r = Release { version: "0.2.3".into(), setup_url: String::new(), sums_url: String::new(), sig_url: None };
-        assert_eq!(manual_failure(&Outcome::Ready(r.clone(), PathBuf::new())), None);
+        assert_eq!(manual_failure(&Outcome::Ready(r.clone(), PathBuf::new(), String::new())), None);
         assert_eq!(manual_failure(&Outcome::Available(r)), None);
         assert_eq!(manual_failure(&Outcome::UpToDate).as_deref(), Some("No newer version of Ferry was found."));
         assert_eq!(manual_failure(&Outcome::NotFound).as_deref(), Some("No newer version of Ferry was found."));

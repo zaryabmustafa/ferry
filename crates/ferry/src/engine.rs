@@ -6,7 +6,7 @@ use crate::trip::job::{self, Kind, Report, TripResult};
 use crate::trip::{purge_unknown, Event, UnloadReport};
 use crate::win::tray::{self, Ev, Icon, MenuCmd};
 use crate::update::{self, Outcome};
-use crate::win::{net, power, smb, toast};
+use crate::win::{http, net, power, smb, toast};
 use ferry_core::backup;
 use ferry_core::cargo::CargoManifest;
 use ferry_core::config::{self, display_name, Config, Fingerprint, Server};
@@ -217,8 +217,11 @@ pub struct Engine {
     update_failing: bool,
     /// An update check or download is running.
     updating: bool,
-    /// A verified installer waiting for a moment when no trip runs: (version, path, user asked).
-    ready: Option<(String, PathBuf, bool)>,
+    /// A verified installer waiting for a moment when no trip runs: (version, path, its SHA-256,
+    /// user asked).
+    ready: Option<(String, PathBuf, String, bool)>,
+    /// Checksum mismatches in a row: (version, count).
+    bad_sums: (String, u32),
     /// The user chose "Update to X.Y.Z" while an automatic check was already running.
     manual_asked: bool,
 }
@@ -268,6 +271,7 @@ impl Engine {
             update_failing: false,
             updating: false,
             ready: None,
+            bad_sums: (String::new(), 0),
             manual_asked: false,
         };
         e.after_update();
@@ -949,15 +953,18 @@ impl Engine {
         let now = unix_now();
         match o {
             Outcome::Failed(_) => self.update_retry_at = now + 3600,
+            // A mismatch is usually a download cut short: try again in an hour, and give the
+            // release up only after it fails three times in a row.
+            Outcome::BadChecksum(v) if !update::give_up_after_mismatch(&mut self.bad_sums, &v) => self.update_retry_at = now + 3600,
             Outcome::BadChecksum(v) | Outcome::BadSignature(v) => {
                 self.update_ok_at = now;
                 if let Some(d) = update::dir() {
                     update::skip(&d, &v);
                 }
             }
-            Outcome::Ready(r, path) => {
+            Outcome::Ready(r, path, sha256) => {
                 self.update_ok_at = now;
-                self.ready = Some((r.version, path, manual));
+                self.ready = Some((r.version, path, sha256, manual));
                 self.install_ready();
             }
             Outcome::UpToDate | Outcome::NotFound | Outcome::Available(_) => self.update_ok_at = now,
@@ -967,9 +974,19 @@ impl Engine {
     /// Runs a verified installer when no trip is running (and, unless the user asked, no Ferry
     /// window is open and Ferry isn't paused), then quits so it can replace this exe. True if it did.
     fn install_ready(&mut self) -> bool {
-        let Some((v, path, manual)) = self.ready.take() else { return false };
+        let Some((v, path, sha256, manual)) = self.ready.take() else { return false };
         if self.trip.is_some() || (!manual && (self.paused() || self.windows_open())) {
-            self.ready = Some((v, path, manual));
+            self.ready = Some((v, path, sha256, manual));
+            return false;
+        }
+        // It may have waited hours in a folder the user can write to: what runs must still be
+        // what the signed checksums named.
+        if !http::sha256_file(&path).is_ok_and(|h| h == sha256) {
+            let _ = fs::remove_file(&path);
+            self.log.line(&format!("update {v} changed after it was checked; not installed"));
+            if manual {
+                self.notify(None, "Ferry wasn't updated", &format!("The downloaded Ferry {v} changed after it was checked, so it wasn't installed."));
+            }
             return false;
         }
         let marker = update::dir().map(|d| d.join("installing"));
@@ -1017,9 +1034,9 @@ impl Engine {
             );
         }
         let Some(dir) = update::dir() else { return Response::Err("LOCALAPPDATA is not set.".into()) };
-        if let Some((v, path, _)) = self.ready.take() {
+        if let Some((v, path, sha256, _)) = self.ready.take() {
             // Already downloaded and verified, waiting for a window to close or the pause to end.
-            self.ready = Some((v, path, true));
+            self.ready = Some((v, path, sha256, true));
             self.install_ready();
         } else if self.updating {
             self.manual_asked = true;

@@ -3,7 +3,7 @@ use super::{
     UnloadReport, record_failed,
 };
 use crate::win::copy::{copy_hashed, finalize, hash_file};
-use ferry_core::cargo::CargoItem;
+use ferry_core::cargo::{CargoItem, CargoManifest};
 use ferry_core::deletes::{decide, DeleteDecision};
 use ferry_core::entry::long_path;
 use ferry_core::snapshot::{Change, Snapshot};
@@ -70,7 +70,8 @@ pub fn run_unload(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<Unlo
     Ok(report)
 }
 
-/// The pushes, then the deletes.
+/// The pushes, then the deletes, then one more try at the pushes a same-named destination folder
+/// blocked (the deletes may have emptied it).
 fn deliver(ctx: &TripCtx, snaps: &mut SnapBatch, emit: &mut dyn FnMut(Event)) -> io::Result<UnloadReport> {
     let cancelled = || ctx.cancel.load(Ordering::Relaxed);
     let mut manifest = load_manifest(ctx.manifest_path, emit)?;
@@ -78,84 +79,19 @@ fn deliver(ctx: &TripCtx, snaps: &mut SnapBatch, emit: &mut dyn FnMut(Event)) ->
     // Pairs that lost a laptop copy: those files are outstanding again until the next fill.
     let mut lost: Vec<String> = vec![];
 
-    for item in manifest.items.clone() {
-        if !ctx.go_on() {
-            return Ok(report);
-        }
-        let Some(roots) = ctx.pairs.iter().find(|r| r.id == item.pair) else { continue };
-        let err = |msg: String| Event::Error { pair: item.pair.clone(), msg };
-        let laptop = ctx.cargo_dir.join(&item.pair).join(&item.rel);
-        if matches!(fs::metadata(long_path(&laptop)), Err(e) if e.kind() == io::ErrorKind::NotFound) {
-            // E.g. a crash between freeing the copy and saving the manifest. Drop the entry
-            // so it can't block the pair forever; the next fill carries it again if needed.
-            manifest.remove(&item.pair, &item.rel);
-            manifest.save(ctx.manifest_path)?;
-            lost.push(item.pair.clone());
-            emit(err(format!("{}: laptop copy missing, dropped from cargo", item.rel)));
-            continue;
-        }
-        // Only a definite absence discards; source unreachable or unknown pushes.
-        let at_source_gone = roots.source_meta.as_ref().and_then(|m| source_absent(m, &item.rel)) == Some(true);
-        if !at_source_gone && fs::metadata(long_path(&roots.destination.join(&item.rel))).is_ok_and(|m| m.is_dir()) {
-            // Can't be replaced by a file; the pair waits until someone sorts it out at the destination.
-            emit(err(format!("{}: {}", item.rel, folder_clash(ctx.source_name, ctx.destination_name))));
-            continue;
-        }
-        if !at_source_gone {
-            match push(ctx, &roots.destination, &item, &laptop, emit) {
-                Ok(PushOutcome::Done) => {
-                    let change = Change::Push { rel: item.rel.clone(), size: item.size, mtime: item.mtime };
-                    snaps.add(&item.pair, change, emit);
-                    report.pushed += 1;
-                    report.pushed_bytes += item.size;
-                    emit(Event::Pushed { pair: item.pair.clone(), rel: item.rel.clone(), size: item.size });
-                }
-                Ok(PushOutcome::DestinationMismatch) => {
-                    report.failed += 1;
-                    emit(Event::VerifyFailed { pair: item.pair.clone(), rel: item.rel.clone() });
-                    continue;
-                }
-                Ok(PushOutcome::LaptopDamaged) => {
-                    // Ruling R32: retrying can't help. Drop it; the next fill carries it again.
-                    if let Err(e) = remove(&laptop) {
-                        emit(err(format!("{}: {e}", item.rel)));
-                        continue;
-                    }
-                    manifest.remove(&item.pair, &item.rel);
-                    manifest.save(ctx.manifest_path)?;
-                    lost.push(item.pair.clone());
-                    emit(err(format!("{}: laptop copy was damaged; will carry it again", item.rel)));
-                    continue;
-                }
-                Err(_) if cancelled() => return Ok(report),
-                Err(e) => {
-                    report.failed += 1;
-                    emit(err(format!("{}: {e}", item.rel)));
-                    continue;
-                }
-            }
-        }
-        // Pushed or discarded: free the laptop copy. If that fails the entry stays, so the
-        // next unload pushes it again (harmless) rather than orphaning the file.
-        match remove(&laptop) {
-            Ok(()) => {
-                manifest.remove(&item.pair, &item.rel);
-                manifest.save(ctx.manifest_path)?;
-                if at_source_gone {
-                    report.discarded += 1;
-                }
-            }
-            Err(e) => emit(err(format!("{}: {e}", item.rel))),
-        }
-    }
+    let items = manifest.items.clone();
+    let Some(blocked) = push_items(ctx, items, false, &mut manifest, snaps, &mut report, &mut lost, emit)? else {
+        return Ok(report);
+    };
 
-    snaps.flush(emit);
     let mut queue = load_queue(ctx.deletes_path, emit)?;
     for roots in ctx.pairs {
         if cancelled() {
             break;
         }
-        if manifest.items.iter().any(|i| i.pair == roots.id) {
+        // A file that a destination folder blocks can only land once that folder's queued deletes
+        // have run, so it doesn't hold them; anything else still on the laptop does.
+        if manifest.items.iter().any(|i| i.pair == roots.id && !blocked.contains(i)) {
             continue;
         }
         let Some(q) = queue.pairs.get_mut(&roots.id) else { continue };
@@ -200,7 +136,112 @@ fn deliver(ctx: &TripCtx, snaps: &mut SnapBatch, emit: &mut dyn FnMut(Event)) ->
         }
         queue.save(ctx.deletes_path)?;
     }
+    if !blocked.is_empty() && !cancelled() {
+        push_items(ctx, blocked, true, &mut manifest, snaps, &mut report, &mut lost, emit)?;
+    }
     Ok(report)
+}
+
+/// Push each item, or discard it when it's gone at the source, and free its laptop copy. Returns
+/// the items a same-named destination folder blocks (with an error for each on the `last_try`),
+/// or `None` when the trip stopped.
+#[allow(clippy::too_many_arguments)]
+fn push_items(
+    ctx: &TripCtx,
+    items: Vec<CargoItem>,
+    last_try: bool,
+    manifest: &mut CargoManifest,
+    snaps: &mut SnapBatch,
+    report: &mut UnloadReport,
+    lost: &mut Vec<String>,
+    emit: &mut dyn FnMut(Event),
+) -> io::Result<Option<Vec<CargoItem>>> {
+    let cancelled = || ctx.cancel.load(Ordering::Relaxed);
+    let mut blocked = vec![];
+    for item in items {
+        if !ctx.go_on() {
+            return Ok(None);
+        }
+        let Some(roots) = ctx.pairs.iter().find(|r| r.id == item.pair) else { continue };
+        let err = |msg: String| Event::Error { pair: item.pair.clone(), msg };
+        let laptop = ctx.cargo_dir.join(&item.pair).join(&item.rel);
+        if matches!(fs::metadata(long_path(&laptop)), Err(e) if e.kind() == io::ErrorKind::NotFound) {
+            // E.g. a crash between freeing the copy and saving the manifest. Drop the entry
+            // so it can't block the pair forever; the next fill carries it again if needed.
+            manifest.remove(&item.pair, &item.rel);
+            manifest.save(ctx.manifest_path)?;
+            lost.push(item.pair.clone());
+            emit(err(format!("{}: laptop copy missing, dropped from cargo", item.rel)));
+            continue;
+        }
+        // Only a definite absence discards; source unreachable or unknown pushes.
+        let at_source_gone = roots.source_meta.as_ref().and_then(|m| source_absent(m, &item.rel)) == Some(true);
+        let dst = roots.destination.join(&item.rel);
+        if !at_source_gone && fs::metadata(long_path(&dst)).is_ok_and(|m| m.is_dir()) && !remove_empty_tree(&dst) {
+            // A folder with files in it can't be replaced by a file. Its queued deletes may clear
+            // it this trip; otherwise the pair waits until someone sorts it out at the destination.
+            if last_try {
+                emit(err(format!("{}: {}", item.rel, folder_clash(ctx.source_name, ctx.destination_name))));
+            }
+            blocked.push(item);
+            continue;
+        }
+        if !at_source_gone {
+            match push(ctx, &roots.destination, &item, &laptop, emit) {
+                Ok(PushOutcome::Done) => {
+                    let change = Change::Push { rel: item.rel.clone(), size: item.size, mtime: item.mtime };
+                    snaps.add(&item.pair, change, emit);
+                    report.pushed += 1;
+                    report.pushed_bytes += item.size;
+                    emit(Event::Pushed { pair: item.pair.clone(), rel: item.rel.clone(), size: item.size });
+                }
+                Ok(PushOutcome::DestinationMismatch) => {
+                    report.failed += 1;
+                    emit(Event::VerifyFailed { pair: item.pair.clone(), rel: item.rel.clone() });
+                    continue;
+                }
+                Ok(PushOutcome::LaptopDamaged) => {
+                    // Ruling R32: retrying can't help. Drop it; the next fill carries it again.
+                    if let Err(e) = remove(&laptop) {
+                        emit(err(format!("{}: {e}", item.rel)));
+                        continue;
+                    }
+                    manifest.remove(&item.pair, &item.rel);
+                    manifest.save(ctx.manifest_path)?;
+                    lost.push(item.pair.clone());
+                    emit(err(format!("{}: laptop copy was damaged; will carry it again", item.rel)));
+                    continue;
+                }
+                Err(_) if cancelled() => return Ok(None),
+                Err(e) => {
+                    report.failed += 1;
+                    emit(err(format!("{}: {e}", item.rel)));
+                    continue;
+                }
+            }
+        }
+        // Pushed or discarded: free the laptop copy. If that fails the entry stays, so the
+        // next unload pushes it again (harmless) rather than orphaning the file.
+        match remove(&laptop) {
+            Ok(()) => {
+                manifest.remove(&item.pair, &item.rel);
+                manifest.save(ctx.manifest_path)?;
+                if at_source_gone {
+                    report.discarded += 1;
+                }
+            }
+            Err(e) => emit(err(format!("{}: {e}", item.rel))),
+        }
+    }
+    snaps.flush(emit);
+    Ok(Some(blocked))
+}
+
+/// Remove `dir` if no file is anywhere inside it (empty folders hold no data). True if it's gone.
+fn remove_empty_tree(dir: &Path) -> bool {
+    let only_empty_dirs = fs::read_dir(long_path(dir))
+        .is_ok_and(|mut d| d.all(|e| e.is_ok_and(|e| e.file_type().is_ok_and(|t| t.is_dir()) && remove_empty_tree(&e.path()))));
+    only_empty_dirs && fs::remove_dir(long_path(dir)).is_ok()
 }
 
 /// Delete each queued path at the destination that is still gone at the source (without `source_meta`,
@@ -526,7 +567,9 @@ mod tests {
         let env = Env::new();
         env.source("a.zip", 4 * KB);
         env.fill();
+        // Made after the fill, so no deletes are queued for what's in it.
         fs::create_dir(env.destination("a.zip")).unwrap();
+        env.put_at(&env.destination("a.zip"), "keep.txt", KB, b'k', env.t);
         let (r, ev) = env.unload();
         assert_eq!((r.pushed, r.failed), (0, 0));
         let errors: Vec<_> = ev.iter().filter(|e| matches!(e, Event::Error { .. })).collect();
@@ -534,6 +577,35 @@ mod tests {
         assert!(matches!(errors[0], Event::Error { msg, .. } if msg.ends_with("a folder at Lake house has the same name as a file at HQ")));
         assert!(!ev.iter().any(|e| matches!(e, Event::Progress { .. })), "no copy was attempted");
         assert_eq!(env.manifest().items.len(), 1);
+    }
+
+    #[test]
+    fn an_empty_destination_folder_in_the_way_is_replaced() {
+        let env = Env::new();
+        env.source("a.zip", 4 * KB);
+        env.fill();
+        fs::create_dir_all(env.destination("a.zip").join("empty").join("deeper")).unwrap();
+        let (r, ev) = env.unload();
+        assert_eq!(r.pushed, 1);
+        assert!(env.destination("a.zip").is_file());
+        assert!(!ev.iter().any(|e| matches!(e, Event::Error { .. })));
+    }
+
+    #[test]
+    fn a_folder_replaced_by_a_file_is_emptied_then_the_file_lands() {
+        let mut env = Env::new();
+        env.opts.delete_confirm_percent = 100;
+        // The destination still has the folder "a.zip" the source turned into a file.
+        fs::create_dir(env.destination("a.zip")).unwrap();
+        env.put_at(&env.destination("a.zip"), "old.txt", KB, b'o', env.t);
+        env.source("a.zip", 4 * KB);
+        assert_eq!(env.fill().carried, 1);
+        assert_eq!(env.queued(), [r"a.zip\old.txt"]);
+        let (r, ev) = env.unload();
+        assert_eq!((r.deleted, r.pushed), (1, 1));
+        assert!(env.destination("a.zip").is_file());
+        assert!(env.manifest().items.is_empty());
+        assert!(!ev.iter().any(|e| matches!(e, Event::Error { .. })), "{ev:?}");
     }
 
     #[test]

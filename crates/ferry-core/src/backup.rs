@@ -66,12 +66,14 @@ pub fn export(f: &Files, version: &str) -> io::Result<String> {
 }
 
 /// Replace the settings and state with the backup's. Refused while the laptop carries files or
-/// holds deletes, which the restore would orphan; `dest` names the destination in that message.
-/// Carried files are kept only if they are still in the cargo folder (`default_cargo` unless the
-/// backup names another). Nothing is written unless the whole backup checks out.
+/// holds deletes, which the restore would orphan (or when it can't tell); `dest` names the
+/// destination in that message. Carried files are kept only if they are still in the cargo folder
+/// (`default_cargo` unless the backup names another), and each one dropped holds its folder's
+/// deletes until it is carried again. Nothing is written unless the whole backup checks out.
 pub fn restore(text: &str, f: &Files, default_cargo: &Path, dest: &str) -> Result<Restored, String> {
     let busy = |m: &CargoManifest, q: &DeleteQueue| !m.items.is_empty() || m.partial.is_some() || q.pairs.values().any(|p| !p.paths.is_empty());
-    let (m, q) = (CargoManifest::load(f.manifest).unwrap_or_default(), DeleteQueue::load(f.deletes).unwrap_or_default());
+    let unreadable = |e: io::Error| format!("Ferry can't read what the laptop is carrying ({e}), so it won't restore over it. Let one trip finish, then restore.");
+    let (m, q) = (CargoManifest::load(f.manifest).map_err(unreadable)?, DeleteQueue::load(f.deletes).map_err(unreadable)?);
     if busy(&m, &q) {
         return Err(format!("The laptop is carrying files or holding deletes for {dest}. Unload at {dest} first, then restore."));
     }
@@ -99,7 +101,13 @@ pub fn restore(text: &str, f: &Files, default_cargo: &Path, dest: &str) -> Resul
     let before = manifest.items.len();
     manifest.items.retain(|i| {
         let p = i.rel.split(['\\', '/']).fold(cargo.join(&i.pair), |a, c| a.join(c));
-        fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() == i.size)
+        let here = fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() == i.size);
+        // Never delivered now: like a lost laptop copy, it holds its folder's deletes (the
+        // destination keeps the old file until the new one arrives).
+        if let (false, Some(q)) = (here, b.deletes.pairs.get_mut(&i.pair)) {
+            q.outstanding += 1;
+        }
+        here
     });
     let kept = manifest.items.len();
 
@@ -204,6 +212,7 @@ mod tests {
 
         let r = restore(&text, &Files { config: &c, manifest: &m, deletes: &d, snapshots: &s }, &cargo, "Home").unwrap();
         assert_eq!(r, Restored { kept: 1, dropped: 1 });
+        assert_eq!(DeleteQueue::load(&d).unwrap().pairs["docs"].outstanding, 1, "the dropped file holds the deletes");
         assert_eq!(fs::read_to_string(&c).unwrap(), CONFIG);
         assert_eq!(CargoManifest::load(&m).unwrap().items, vec![item("sub\\kept.bin", 4)]);
         assert_eq!(DeleteQueue::load(&d).unwrap().pairs["docs"].paths, ["old.txt"]);
@@ -220,6 +229,17 @@ mod tests {
         CargoManifest { items: vec![], partial: Some(p) }.save(&m).unwrap();
         let e = restore(&text, &Files { config: &c, manifest: &m, deletes: &d, snapshots: &s }, &to.root, "Home").unwrap_err();
         assert!(e.contains("Unload at Home first"), "{e}");
+        assert!(!c.exists());
+    }
+
+    #[test]
+    fn refused_when_the_cargo_list_is_unreadable() {
+        let (_src, text) = source();
+        let to = Env::new();
+        let (c, m, d, s) = to.files();
+        fs::write(&m, "not json").unwrap();
+        let e = restore(&text, &Files { config: &c, manifest: &m, deletes: &d, snapshots: &s }, &to.root, "Home").unwrap_err();
+        assert!(e.contains("can't read what the laptop is carrying"), "{e}");
         assert!(!c.exists());
     }
 

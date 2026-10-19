@@ -371,7 +371,7 @@ fn flyout() -> Result<(), slint::PlatformError> {
             a.with_skip_taskbar(true)
                 .with_corner_preference(CornerPreference::Round)
                 .with_resizable(false)
-                // Off screen until place() puts it above the tray.
+                // Off screen until place() puts it by the tray.
                 .with_position(winit::dpi::PhysicalPosition::new(-30000, -30000))
         })
         .select()?;
@@ -482,15 +482,21 @@ fn ferry(args: &[&str]) -> std::io::Result<std::process::Child> {
     std::process::Command::new(std::env::current_exe()?).args(args).spawn()
 }
 
-/// Bottom-right of the primary work area, 12 px in from each edge.
+/// In the primary work area's corner by the tray, 12 px in from each edge.
 fn place(w: &slint::Window) {
     let Some(wa) = win::work_area() else { return };
     let margin = (12.0 * w.scale_factor()).round() as i32;
     let size = w.size();
-    w.set_position(slint::PhysicalPosition::new(
-        wa.right - margin - size.width as i32,
-        wa.bottom - margin - size.height as i32,
-    ));
+    let (x, y) = corner(win::taskbar_edge(), (wa.left, wa.top, wa.right, wa.bottom), (size.width as i32, size.height as i32), margin);
+    w.set_position(slint::PhysicalPosition::new(x, y));
+}
+
+/// Where the flyout goes: the tray sits at the right (or bottom) end of the taskbar, so the
+/// flyout hugs the taskbar's edge of the work area and that end of it.
+fn corner(edge: win::Edge, (l, t, r, b): (i32, i32, i32, i32), (w, h): (i32, i32), m: i32) -> (i32, i32) {
+    let x = if edge == win::Edge::Left { l + m } else { r - m - w };
+    let y = if edge == win::Edge::Top { t + m } else { b - m - h };
+    (x, y)
 }
 
 /// One Status call on a worker thread, unless one is still out; `deliver` hands the result to the UI.
@@ -689,6 +695,29 @@ mod win {
             .ok()
             .map(|()| rc)
     }
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum Edge {
+        Left,
+        Top,
+        Right,
+        Bottom,
+    }
+
+    /// Which screen edge the taskbar is on; Bottom when Windows won't say.
+    pub fn taskbar_edge() -> Edge {
+        use windows::Win32::UI::Shell::{SHAppBarMessage, ABE_LEFT, ABE_RIGHT, ABE_TOP, ABM_GETTASKBARPOS, APPBARDATA};
+        let mut d = APPBARDATA { cbSize: size_of::<APPBARDATA>() as u32, ..Default::default() };
+        if unsafe { SHAppBarMessage(ABM_GETTASKBARPOS, &mut d) } == 0 {
+            return Edge::Bottom;
+        }
+        match d.uEdge {
+            ABE_LEFT => Edge::Left,
+            ABE_TOP => Edge::Top,
+            ABE_RIGHT => Edge::Right,
+            _ => Edge::Bottom,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -698,6 +727,15 @@ mod tests {
     /// Names as a user might type them: kept as written, spaces and all.
     fn n() -> Names {
         Names { src: "HQ".into(), dest: "Lake house".into() }
+    }
+
+    #[test]
+    fn the_flyout_sits_by_the_taskbar() {
+        let (wa, size, m) = ((100, 50, 1900, 1030), (300, 400), 12);
+        assert_eq!(corner(win::Edge::Bottom, wa, size, m), (1588, 618));
+        assert_eq!(corner(win::Edge::Right, wa, size, m), (1588, 618));
+        assert_eq!(corner(win::Edge::Top, wa, size, m), (1588, 62));
+        assert_eq!(corner(win::Edge::Left, wa, size, m), (112, 618));
     }
 
     #[test]

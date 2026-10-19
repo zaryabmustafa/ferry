@@ -63,7 +63,15 @@ pub fn run_unload(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<Unlo
         let path = snap_path(ctx.snapshots, &roots.id);
         let first = !Snapshot::recorded_before(&path);
         match fs::create_dir_all(long_path(&roots.destination)).and_then(|()| Snapshot::record(&roots.destination, &path)) {
-            Ok(()) => report.first_records += u64::from(first),
+            Ok(parts) => {
+                report.first_records += u64::from(first);
+                // Every push is done, so a part file left here is from one that was cut short.
+                for rel in parts {
+                    if let Err(e) = remove(&roots.destination.join(&rel)) {
+                        emit(Event::Error { pair: roots.id.clone(), msg: format!("{rel}: {e}") });
+                    }
+                }
+            }
             Err(e) => emit(Event::Error { pair: roots.id.clone(), msg: format!("{}{e}", record_failed(ctx.destination_name)) }),
         }
     }
@@ -814,6 +822,18 @@ mod tests {
         assert_eq!(r.pushed, 1);
         assert_eq!(fs::read(env.destination("a.zip")).unwrap(), vec![b'o'; 8 * KB]);
         assert!(!env.destination("a.zip.ferry-part").exists());
+    }
+
+    #[test]
+    fn a_part_left_by_an_earlier_push_is_cleared() {
+        let env = Env::new();
+        env.source("a.zip", 4 * KB);
+        env.fill();
+        fs::create_dir(env.destination("sub")).unwrap();
+        fs::write(env.destination("sub").join("gone.bin.ferry-part"), vec![b'x'; KB]).unwrap();
+        let (r, _) = env.unload();
+        assert_eq!(r.pushed, 1);
+        assert!(!env.destination("sub").join("gone.bin.ferry-part").exists());
     }
 
     #[test]

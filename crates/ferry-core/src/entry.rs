@@ -69,13 +69,19 @@ pub fn safe_name(name: &str) -> bool {
 /// not [`safe_name`] fails the whole listing (`InvalidData`), so it is treated as unlistable:
 /// nothing in it is copied by that name and no deletes follow from it.
 pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
-    let mut out = Vec::new();
+    list_dir_and_parts(dir).map(|(entries, _)| entries)
+}
+
+/// `list_dir`, and the names of the `.ferry-part` files it skipped.
+pub fn list_dir_and_parts(dir: &Path) -> io::Result<(Vec<Entry>, Vec<String>)> {
+    let (mut out, mut parts) = (Vec::new(), Vec::new());
     for de in std::fs::read_dir(long_path(dir))? {
         let de = de?;
         let name = de.file_name().into_string().ok().filter(|n| safe_name(n)).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidData, format!("unsafe file name {:?} in {}", de.file_name(), dir.display()))
         })?;
         if name.ends_with(".ferry-part") {
+            parts.push(name);
             continue;
         }
         let m = de.metadata()?;
@@ -87,7 +93,7 @@ pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
         });
     }
     out.sort_by(|a, b| name_order(&a.name, &b.name));
-    Ok(out)
+    Ok((out, parts))
 }
 
 #[cfg(test)]

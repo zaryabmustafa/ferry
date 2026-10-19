@@ -7,7 +7,7 @@
 
 use crate::cargo::write_atomic_with;
 use crate::diff::{at, join};
-use crate::entry::{fold, list_dir, name_order, Entry};
+use crate::entry::{fold, list_dir_and_parts, name_order, Entry};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
@@ -27,22 +27,26 @@ pub struct SnapshotReader {
 
 impl Snapshot {
     /// Walk `destination_root` and write it to `out`. The old snapshot is replaced only by a complete
-    /// walk: a folder that can't be listed fails the whole record.
-    pub fn record(destination_root: &Path, out: &Path) -> io::Result<()> {
+    /// walk: a folder that can't be listed fails the whole record. Returns the `.ferry-part` files
+    /// the walk passed (rel paths), which the caller may clear up.
+    pub fn record(destination_root: &Path, out: &Path) -> io::Result<Vec<String>> {
         if let Some(d) = out.parent() {
             fs::create_dir_all(d)?;
         }
+        let mut parts = vec![];
         write_atomic_with(out, |w| {
             writeln!(w, "{HEADER}")?;
             let mut stack = vec![String::new()];
             while let Some(dir) = stack.pop() {
-                let entries = list_dir(&at(destination_root, &dir))?;
+                let (entries, p) = list_dir_and_parts(&at(destination_root, &dir))?;
+                parts.extend(p.iter().map(|n| join(&dir, n)));
                 write_block(w, &dir, &entries)?;
                 stack.extend(entries.iter().filter(|e| e.is_dir).map(|e| join(&dir, &e.name)));
             }
             writeln!(w, "E")
         })?;
-        fs::write(marker(out), b"")
+        fs::write(marker(out), b"")?;
+        Ok(parts)
     }
 
     /// A missing snapshot is `NotFound`; a damaged one is `InvalidData`.

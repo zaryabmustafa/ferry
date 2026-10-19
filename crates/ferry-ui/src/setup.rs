@@ -598,7 +598,13 @@ fn wire(ui: &Setup) {
         }
     });
     on!(on_skip, |ui| {
-        let step = ui.global::<S>().get_step();
+        let g = ui.global::<S>();
+        let step = g.get_step();
+        match step {
+            2 => g.set_network_skipped(true),
+            3 => g.set_folder_skipped(true),
+            _ => {}
+        }
         to_step(&ui, step + 1);
     });
 }
@@ -881,6 +887,7 @@ fn save_pair(ui: &Setup) {
     show_config(ui);
     g.set_editing(false);
     if g.get_first_run() {
+        g.set_folder_skipped(false);
         st(|s| s.first_pair = saved_id);
         to_step(ui, 4);
     }
@@ -1045,6 +1052,7 @@ fn remember(ui: &Setup, side: Side) {
         put_server_note(&g, side, n.clone());
         g.set_remember_note(n);
         if ok && g.get_first_run() && g.get_step() == 2 {
+            g.set_network_skipped(false);
             st(|s| s.remembered = Some(side));
             to_step(ui, 3);
         }

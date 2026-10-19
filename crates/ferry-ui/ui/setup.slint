@@ -53,11 +53,14 @@ component Nav inherits VerticalLayout {
 }
 
 // One step in the first run's sidebar, drawn like a sidebar item: a numbered disc that turns into
-// a check once done, and the accent bar on the current one. Not clickable: Back and Continue move.
+// a check once done, and the accent bar on the current one. A step passed with "Skip for now"
+// keeps its number and says so. Not clickable: Back and Continue move.
 component StepItem inherits Rectangle {
     in property <int> n;
     in property <string> text;
-    property <bool> done: S.step > root.n;
+    in property <bool> skipped;
+    property <bool> passed: S.step > root.n;
+    property <bool> done: root.passed && !root.skipped;
     property <bool> current: S.step == root.n;
     height: 36px;
     border-radius: 4px;
@@ -65,7 +68,7 @@ component StepItem inherits Rectangle {
     border-width: root.current && Theme.hc ? 1px : 0;
     border-color: Theme.stroke;
     accessible-role: list-item;
-    accessible-label: "Step " + (root.n + 1) + ", " + root.text + (root.done ? ", done" : root.current ? ", current" : "");
+    accessible-label: "Step " + (root.n + 1) + ", " + root.text + (root.done ? ", done" : root.passed ? ", skipped" : root.current ? ", current" : "");
     if root.current: Rectangle {
         x: 0;
         y: 10px;
@@ -110,6 +113,13 @@ component StepItem inherits Rectangle {
             font-weight: root.current ? 600 : 400;
             accessible-role: none;
         }
+        if root.passed && root.skipped: Text {
+            text: "Skipped";
+            font-size: 12px;
+            color: Theme.muted;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
     }
 }
 
@@ -127,7 +137,7 @@ component Steps inherits VerticalLayout {
         VerticalLayout {
             alignment: center;
             Text { text: "Set up Ferry"; color: Theme.ink; font-weight: 600; overflow: elide; }
-            Caption { text: S.step < 4 ? "Step " + (S.step + 1) + " of 4" : "All set"; wrap: no-wrap; overflow: elide; }
+            Caption { text: S.step < 4 ? "Step " + (S.step + 1) + " of 4" : S.network-skipped && S.folder-skipped ? "2 steps skipped" : S.network-skipped || S.folder-skipped ? "1 step skipped" : "All set"; wrap: no-wrap; overflow: elide; }
         }
     }
     VerticalLayout {
@@ -136,8 +146,8 @@ component Steps inherits VerticalLayout {
         accessible-label: "Setup steps";
         StepItem { n: 0; text: "Source server"; }
         StepItem { n: 1; text: "Destination server"; }
-        StepItem { n: 2; text: "This network"; }
-        StepItem { n: 3; text: "First folder"; }
+        StepItem { n: 2; text: "This network"; skipped: S.network-skipped; }
+        StepItem { n: 3; text: "First folder"; skipped: S.folder-skipped; }
     }
     Rectangle { vertical-stretch: 1; }
     if S.step < 4: VerticalLayout {

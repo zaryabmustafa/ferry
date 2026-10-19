@@ -144,6 +144,9 @@ export global S {
 
     // First run: 0 source, 1 destination, 2 this network, 3 first folder, 4 closing note
     in property <int> step;
+    // Steps 2 and 3 left with "Skip for now", until they are done after all.
+    in property <bool> network-skipped;
+    in property <bool> folder-skipped;
     in property <string> closing;
     // Neither server has a remote address: ask whether destination starts empty (spec 4.4).
     in property <bool> sneakernet;

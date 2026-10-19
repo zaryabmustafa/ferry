@@ -19,6 +19,11 @@ pub fn visit_destination(destination: &str) -> String {
     format!("Visit {destination} once so Ferry can record what's there.")
 }
 
+/// `rel` is definitely not at the source: not found, or under a name that is now a file.
+fn gone_at_source(source: &Path, rel: &str) -> bool {
+    fs::symlink_metadata(long_path(&source.join(rel))).is_err_and(|e| matches!(e.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory))
+}
+
 fn same_version(p: &Partial, c: &Candidate) -> bool {
     p.pair == c.pair && p.rel.to_lowercase() == c.rel.to_lowercase() && p.size == c.size && p.mtime == c.mtime
 }
@@ -77,13 +82,23 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
             }
         };
         let stable_secs = i64::from(opts.stable_minutes) * 60;
-        let d = match diff_pair(pair, &roots.source, destination, &manifest, ctx.now, stable_secs) {
+        let mut d = match diff_pair(pair, &roots.source, destination, &manifest, ctx.now, stable_secs) {
             Ok(d) => d,
             Err(e) => {
                 emit(err(format!("listing failed: {e}")));
                 continue;
             }
         };
+
+        // A listing can leave out files that are there (Access-Based Enumeration, Samba's `hide
+        // unreadable`): only a file the source can't find when asked by name is deleted.
+        let listed = d.deletes.len();
+        d.deletes.retain(|rel| gone_at_source(&roots.source, rel));
+        if d.deletes.len() < listed {
+            let n = listed - d.deletes.len();
+            let msg = format!("{n} files missing from the listing of {pair} at {} are still there when asked by name, so they stay at {}", ctx.source_name, ctx.destination_name);
+            emit(Event::Info { pair: pair.to_string(), msg });
+        }
 
         for rel in &d.cargo_gone {
             match remove(&ctx.cargo_dir.join(pair).join(rel)) {
@@ -403,6 +418,18 @@ mod tests {
             let r = self.fill_with(&AtomicBool::new(false), &mut |e| events.push(e));
             (r, events)
         }
+    }
+
+    #[test]
+    fn only_a_file_the_source_cannot_find_counts_as_gone() {
+        let env = Env::new();
+        env.source("here.txt", KB);
+        let src = env.source.path();
+        assert!(!gone_at_source(src, "here.txt"));
+        assert!(gone_at_source(src, "gone.txt"));
+        assert!(gone_at_source(src, r"no\such\dir.txt"));
+        // A folder at the destination where the source now has a file of that name.
+        assert!(gone_at_source(src, r"here.txt\old.txt"));
     }
 
     #[test]

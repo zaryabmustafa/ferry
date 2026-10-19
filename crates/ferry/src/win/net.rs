@@ -250,7 +250,8 @@ unsafe extern "system" fn on_ip_change<Row>(
 ) {
     // SAFETY: `ctx` is the `*mut Callback` leaked by `watch`, alive until cancelled.
     let f = unsafe { &*(ctx as *const Callback) };
-    // A panic must not unwind across FFI (that aborts the process).
+    // In debug builds and tests a panic unwinds, and unwinding out of this callback would abort.
+    // Release builds abort on any panic anyway (panic = "abort"): there this does nothing.
     let _ = catch_unwind(AssertUnwindSafe(f));
 }
 

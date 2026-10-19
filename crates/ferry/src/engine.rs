@@ -1052,8 +1052,16 @@ impl Engine {
 
     /// Per-pair status and carried bytes, from the manifest and delete queue on disk.
     fn refresh_files(&mut self) {
-        let m = CargoManifest::load(&self.paths.manifest).unwrap_or_default();
-        let q = DeleteQueue::load(&self.paths.deletes).unwrap_or_default();
+        // Elsewhere an unreadable state file quietly counts as empty, which holds work rather than
+        // losing it; the next trip sets it aside. This is where the log says so.
+        let m = CargoManifest::load(&self.paths.manifest).unwrap_or_else(|e| {
+            self.log.line(&format!("cargo list unreadable, counted as empty until the next trip sets it aside: {e}"));
+            CargoManifest::default()
+        });
+        let q = DeleteQueue::load(&self.paths.deletes).unwrap_or_else(|e| {
+            self.log.line(&format!("delete queue unreadable, counted as empty until the next trip sets it aside: {e}"));
+            DeleteQueue::default()
+        });
         self.status.cap_bytes = self.cfg.options.cap_bytes;
         self.status.carried_bytes = m.carried_bytes();
         self.status.pairs = self

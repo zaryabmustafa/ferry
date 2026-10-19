@@ -13,6 +13,10 @@ pub struct PairDeletes {
     /// Destination file count from the trusted listing that wrote `paths` (for the confirm threshold).
     #[serde(default, alias = "home_files")]
     pub destination_files: u64,
+    /// Source file count from the last complete listing: with `outstanding` and the cargo, how far
+    /// the destination is from a mirror.
+    #[serde(default)]
+    pub source_files: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,7 +86,7 @@ mod tests {
         let mut q = DeleteQueue::default();
         q.pairs.insert("repositories".into(), PairDeletes {
             paths: vec!["a.txt".into(), "dir/b.txt".into()],
-            outstanding: 3, needs_confirm: true, confirmed: false, destination_files: 217,
+            outstanding: 3, needs_confirm: true, confirmed: false, destination_files: 217, source_files: 240,
         });
         q.save(&p).unwrap();
         assert_eq!(DeleteQueue::load(&p).unwrap(), q);

@@ -10,7 +10,7 @@ use crate::win::{http, net, power, smb, toast};
 use ferry_core::backup;
 use ferry_core::cargo::CargoManifest;
 use ferry_core::config::{self, display_name, Config, Fingerprint, Server};
-use ferry_core::deletes::{list_id, DeleteQueue};
+use ferry_core::deletes::{list_id, DeleteQueue, PairDeletes};
 
 /// The answer to a confirmation whose list isn't the one held now.
 const LIST_CHANGED: &str = "The list of deletes changed; review it again.";
@@ -1079,8 +1079,7 @@ impl Engine {
                 PairStatus {
                     id: p.id.clone(),
                     carried_bytes: carried,
-                    // ponytail: no destination/source byte totals yet, so 100 when up to date, else 0.
-                    destination_percent: if up_to_date { 100 } else { 0 },
+                    destination_percent: destination_percent(up_to_date, d, m.items.iter().filter(|i| i.pair == p.id).count() as u64),
                     new_carried,
                     removed_at_destination,
                     up_to_date,
@@ -1343,6 +1342,21 @@ fn test_timeout_message() -> String {
 fn answers_445(host: &str) -> bool {
     !host.trim().is_empty()
         && (host, 445).to_socket_addrs().ok().and_then(|mut a| a.next()).is_some_and(|a| net::probe_445(a.ip()))
+}
+
+/// How much of the source the destination holds, by file count: the source's files less those not
+/// yet carried and those on the laptop. Short of a mirror (deletes still to come) is at most 99.
+pub fn destination_percent(up_to_date: bool, d: Option<&PairDeletes>, in_cargo: u64) -> u8 {
+    if up_to_date {
+        return 100;
+    }
+    match d.filter(|d| d.source_files > 0) {
+        Some(d) => {
+            let missing = (d.outstanding + in_cargo).min(d.source_files);
+            ((100 * (d.source_files - missing) / d.source_files) as u8).min(99)
+        }
+        None => 0,
+    }
 }
 
 /// Approve a pair's held deletes, only as the user saw them: `count` is how many the UI showed
@@ -1828,6 +1842,17 @@ mod tests {
         approve(&mut q, "p", None, 2, 0).unwrap();
         assert!(q.pairs["p"].confirmed);
         assert!(!q.pairs["p"].needs_confirm, "the Delete button goes away once confirmed");
+    }
+
+    #[test]
+    fn destination_percent_counts_files_still_missing() {
+        let d = PairDeletes { source_files: 200, outstanding: 30, ..Default::default() };
+        assert_eq!(destination_percent(false, Some(&d), 20), 75, "50 of 200 not there yet");
+        assert_eq!(destination_percent(false, Some(&d), 500), 0);
+        let nothing_missing = PairDeletes { source_files: 200, ..Default::default() };
+        assert_eq!(destination_percent(false, Some(&nothing_missing), 0), 99, "deletes still to come");
+        assert_eq!(destination_percent(true, Some(&d), 20), 100);
+        assert_eq!(destination_percent(false, None, 0), 0, "no listing yet");
     }
 
     #[test]

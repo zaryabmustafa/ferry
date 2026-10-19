@@ -782,7 +782,7 @@ mod tests {
 
     #[test]
     fn remote_trouble_is_shown_where_it_matters() {
-        // Ruling V3: no VPN name; the remote address may be any VPN.
+        // No VPN name; the remote address may be any VPN.
         let line = |l, ok| remote_line(l, ok, &n());
         assert_eq!(line(Location::Source, false).as_deref(), Some("Can't reach Lake house from here; nothing was carried"));
         assert_eq!(line(Location::Destination, false).as_deref(), Some("Can't reach HQ from here; deletes at Lake house wait"));
@@ -880,7 +880,7 @@ mod tests {
         assert_eq!(literals(src), ["y\\\"es", "raw \"x\""]);
     }
 
-    /// Ruling V3: the remote-address help text is the one generic string that may name it.
+    /// The remote-address help text is the one generic string that may name it.
     const REMOTE_HELP: &str = concat!(
         "How Ferry reaches this server when you're somewhere else, for example a ",
         "Tail",

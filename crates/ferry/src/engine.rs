@@ -457,7 +457,7 @@ impl Engine {
     }
 
     fn start(&mut self, kind: Kind) {
-        // A disabled pair is still unloaded (Ruling R31), but only enabled ones are filled.
+        // A disabled pair is still unloaded, but only enabled ones are filled.
         if !self.cfg.pairs.iter().any(|p| p.enabled || kind == Kind::Unload) {
             return; // nothing set up yet: stay idle
         }
@@ -571,7 +571,7 @@ impl Engine {
         }
         match r.report {
             Report::WrongPlace { why, blocked_at } => {
-                // Ruling R21: the worker re-checked and this is not where the trip belongs.
+                // The worker re-checked and this is not where the trip belongs.
                 self.log.line(&format!("trip not started: {why}"));
                 if self.sched.blocked_at_start(blocked_at) {
                     self.trigger();
@@ -808,7 +808,7 @@ impl Engine {
         }
     }
 
-    /// Ruling R31: forget the cargo and queued deletes of folders no longer in the list.
+    /// Forget the cargo and queued deletes of folders no longer in the list.
     fn purge(&mut self) {
         let known: Vec<String> = self.cfg.pairs.iter().map(|p| p.id.clone()).collect();
         let cargo = job::cargo_dir(&self.cfg, &self.paths);
@@ -1290,7 +1290,7 @@ fn capture_for(host: &str) -> Result<Fingerprint, String> {
 
 /// Connect to the server and list the first pair's root: on the LAN host if it answers on
 /// 445, else at its remote address, if it has one. With no folder pair yet, the host's `IPC$` share checks the
-/// sign-in alone (Ruling R22).
+/// sign-in alone.
 fn test_server(srv: &Server, path: Option<&str>) -> Result<(), String> {
     let attempt = |host: &str, root: Option<PathBuf>| -> io::Result<()> {
         match (path, root) {
@@ -1870,7 +1870,7 @@ mod tests {
 
     #[test]
     fn unreachable_destination_and_failed_listings_need_attention() {
-        // Ruling V3: no VPN name in the row; the remote address may be any VPN, or none.
+        // No VPN name in the row; the remote address may be any VPN, or none.
         assert_eq!(
             error_attention("docs", "can't reach Lake house: The network path was not found. (os error 53)", "HQ", "Lake house").as_deref(),
             Some("Can't reach Lake house from here for docs. Nothing was carried for it.")

@@ -55,7 +55,7 @@ pub(crate) fn write_atomic_with(path: &Path, fill: impl FnOnce(&mut dyn io::Writ
     std::fs::rename(&tmp, path)
 }
 
-/// Load state; a corrupt file (Ruling R33) is renamed to `<path>.corrupt-<unix secs>` and
+/// Load state; a corrupt file is renamed to `<path>.corrupt-<unix secs>` and
 /// the empty state is used instead. Returns the state and where a corrupt file went.
 pub fn load_or_reset<T: DeserializeOwned + Default>(path: &Path, unix_now: i64) -> io::Result<(T, Option<PathBuf>)> {
     match load_json(path) {

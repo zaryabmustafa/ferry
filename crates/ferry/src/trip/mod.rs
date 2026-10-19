@@ -78,7 +78,7 @@ pub enum Event {
     VerifyFailed { pair: String, rel: String },
     /// A line for Activity only.
     Info { pair: String, msg: String },
-    /// A corrupt state file was moved to `aside` and replaced by an empty one (Ruling R33).
+    /// A corrupt state file was moved to `aside` and replaced by an empty one.
     StateReset { manifest: bool, aside: PathBuf },
 }
 
@@ -132,7 +132,7 @@ fn unix_now() -> i64 {
 }
 
 /// The manifest for a trip. A corrupt one is moved aside, reported, and replaced by an empty
-/// one (Ruling R33); the files it listed stay, and the next fill's copy replaces them.
+/// one; the files it listed stay, and the next fill's copy replaces them.
 fn load_manifest(path: &Path, emit: &mut dyn FnMut(Event)) -> io::Result<CargoManifest> {
     let (m, aside) = load_or_reset(path, unix_now())?;
     if let Some(aside) = aside {
@@ -259,7 +259,7 @@ impl<'a> SnapBatch<'a> {
     }
 }
 
-/// Ruling R31: drop the cargo (laptop files, and a part for it) and queued deletes of pair ids
+/// Drop the cargo (laptop files, and a part for it) and queued deletes of pair ids
 /// that are no longer in the config, and their destination snapshots; and snapshot leftovers (temp and
 /// set-aside files) older than 30 days. A file that can't be deleted keeps its entry, to retry.
 pub fn purge_unknown(

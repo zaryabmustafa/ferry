@@ -148,7 +148,7 @@ fn taken_ids(c: &Config) -> Vec<String> {
     ids
 }
 
-/// The id a pair keeps after an edit: a new one when a path changed (Ruling R31), so the engine
+/// The id a pair keeps after an edit: a new one when a path changed, so the engine
 /// discards what was carried for the old paths instead of delivering it to the new ones.
 pub fn edited_id(p: &Pair, source: &str, destination: &str, taken: &[String]) -> String {
     if p.source_path.eq_ignore_ascii_case(source) && p.destination_path.eq_ignore_ascii_case(destination) {
@@ -256,7 +256,7 @@ fn delete_label(count: u32, n: &Names) -> String {
     }
 }
 
-/// The delete-confirmation rule, and why small folders always ask (Ruling R10).
+/// The delete-confirmation rule, and why small folders always ask.
 fn thresholds(pct: u8, count: u32, n: &Names) -> (String, String) {
     let dest = &n.dest;
     let rule = format!("Ferry asks before deleting at {dest} when one pass would remove more than {pct}% of a folder's files, or more than {count} files.");

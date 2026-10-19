@@ -66,7 +66,7 @@ impl BulkPath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Located {
     pub location: Location,
-    /// The matched fingerprint's server LAN IP: bulk copies go exactly there (Ruling R35).
+    /// The matched fingerprint's server LAN IP: bulk copies go exactly there.
     pub server_ip: Option<IpAddr>,
     /// `None` only when `Elsewhere`.
     pub bulk: Option<BulkPath>,
@@ -84,7 +84,7 @@ impl Located {
 const VPN_NAMES: [&str; 6] = ["tailscale", "wireguard", "wintun", "tap-windows", "zerotier", "openvpn"];
 
 /// Spec 4.2: tunnels by type or driver name; a virtual adapter counts as local only when it's a
-/// known virtual switch holding the default gateway (Hyper-V vEthernet), Ruling V4a.
+/// known virtual switch holding the default gateway (Hyper-V vEthernet).
 pub fn classify(a: &Adapter) -> AdapterKind {
     let names = format!("{} {}", a.alias, a.description).to_lowercase();
     let vswitch = (a.description.contains("Hyper-V Virtual Ethernet") || a.alias.starts_with("vEthernet")) && !a.gateway_macs.is_empty();
@@ -113,7 +113,7 @@ pub fn is_tailscale(a: &Adapter) -> bool {
 /// destination, so a blocked source never hides a usable destination); else the first blocked
 /// match, source before destination (on Wi-Fi and cable at once, the cable that allows bulk wins).
 /// `check_vpn(server_ip, vpn_adapter, local_adapter)` runs at most once per (server IP, VPN
-/// adapter) within one call (Ruling V4d).
+/// adapter) within one call.
 pub fn locate(
     cfg: &Config,
     adapters: &[Adapter],
@@ -208,8 +208,7 @@ pub fn reason_text(b: &BulkPath, ip: IpAddr) -> Option<String> {
 /// "Remember this network": the up local adapter with a gateway MAC whose subnet holds
 /// `server`. Only when no local adapter's subnet holds it, the first local adapter with a
 /// gateway MAC (Windows' adapter order), and only if Windows routes `server` through it
-/// (`best_if`); the server's subnet without a resolved router is an error, not a fallback
-/// (Ruling V4c).
+/// (`best_if`); the server's subnet without a resolved router is an error, not a fallback.
 pub fn pick_local<'a>(adapters: &'a [Adapter], server: IpAddr, best_if: &dyn Fn(IpAddr) -> Option<u32>) -> Result<&'a Adapter, String> {
     let locals = || adapters.iter().filter(|a| a.up && classify(a) == AdapterKind::Local);
     let mut on_subnet = locals().filter(|a| a.prefixes.iter().any(|&(net, len)| len > 0 && in_prefix(server, net, len))).peekable();
@@ -600,7 +599,7 @@ mod tests {
 
     #[test]
     fn pick_local_wont_fall_back_when_the_servers_subnet_has_no_router_yet() {
-        // Ruling V4c: the server's own network is here but its gateway MAC isn't resolved.
+        // The server's own network is here but its gateway MAC isn't resolved.
         let gwless = Adapter { gateway_macs: vec![], ..ethernet() };
         let wifi = Adapter { index: 7, prefixes: vec![("10.1.1.5".parse().unwrap(), 24)], ..ethernet() };
         assert_eq!(
@@ -611,7 +610,7 @@ mod tests {
 
     #[test]
     fn only_a_known_virtual_switch_counts_as_local_when_not_hardware() {
-        // Ruling V4a: a gateway MAC alone doesn't make a virtual adapter local.
+        // A gateway MAC alone doesn't make a virtual adapter local.
         let virt = |alias: &str, desc: &str| classify(&Adapter { alias: alias.into(), description: desc.into(), hardware: false, ..ethernet() });
         assert_eq!(virt("VMware Network Adapter VMnet8", "VMware Virtual Ethernet Adapter for VMnet8"), AdapterKind::Vpn);
         assert_eq!(virt("Ethernet 4", "Some Unknown Virtual Miniport"), AdapterKind::Vpn);
@@ -624,7 +623,7 @@ mod tests {
 
     #[test]
     fn trust_needs_a_named_adapter() {
-        // Ruling V4b: an empty alias never matches an empty trusted_adapter.
+        // An empty alias never matches an empty trusted_adapter.
         let ads = [ethernet(), vpn(30, "", "WireGuard Tunnel")];
         let l = owner_locate(&owner_cfg(true, ""), &ads, 30, PathVerdict::Unknown);
         assert!(matches!(l.bulk, Some(BulkPath::ViaVpn { trusted: false, .. })));
@@ -633,7 +632,7 @@ mod tests {
 
     #[test]
     fn the_vpn_checker_runs_once_per_server_and_adapter() {
-        // Ruling V4d: two fingerprints (Wi-Fi and cable) for one server, both routed via Tailscale.
+        // Two fingerprints (Wi-Fi and cable) for one server, both routed via Tailscale.
         let mut c = owner_cfg(false, "");
         let wifi_gw = [9; 6];
         c.source.fingerprints.push(Fingerprint { gateway_mac: wifi_gw, ..c.source.fingerprints[0].clone() });

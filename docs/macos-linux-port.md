@@ -110,12 +110,12 @@ Risk: **L** a day or two, well-trodden; **M** needs a spike or has a known gap; 
 
 Windows lets any program open `\\192.0.2.10\share\file` once a session exists. Ferry leans on that everywhere: `config::unc` builds roots, `entry::list_dir`, `diff`, `snapshot`, `fill` and `unload` are all `std::fs` on paths. Two properties matter for safety:
 
-1. Bulk copies go to exactly the LAN IP of the matched fingerprint (Ruling R35); listings and deletes may go to the remote host. So Ferry chooses the host per connection.
+1. Bulk copies go to exactly the LAN IP of the matched fingerprint; listings and deletes may go to the remote host. So Ferry chooses the host per connection.
 2. Ferry holds the credentials, so a trip can sign in without the user.
 
 **macOS** keeps both with NetFS: mount `smb://<lan ip>/<share>` (and separately `smb://<remote host>/<share>`) under `~/Library/Application Support/Ferry/mnt/<host>/<share>`, with the Keychain password passed to `NetFSMountURLSync`. `sys::smb::connect` changes from `-> io::Result<()>` to `-> io::Result<PathBuf>` returning the root to use; the Windows version returns the same `unc(host, share)` it builds today, so `job.rs` takes roots from `connect` instead of calling `unc` itself. Before every trip the mount root is checked to be a mount point (its `st_dev` differs from its parent's), so an unmounted folder can never be mistaken for an empty server.
 
-**Linux** can't do this without root: kernel CIFS mounts need `CAP_SYS_ADMIN` (not allowed in user namespaces), and gvfs is GNOME-only, slow through FUSE, and opens files without deny-write. "Bring your own mount" (fstab or autofs) is a trap: the mount's host is fixed, so R35 is lost; kernel CIFS can't request deny-write; and an unmounted mount point is a local empty folder that unload would happily write into.
+**Linux** can't do this without root: kernel CIFS mounts need `CAP_SYS_ADMIN` (not allowed in user namespaces), and gvfs is GNOME-only, slow through FUSE, and opens files without deny-write. "Bring your own mount" (fstab or autofs) is a trap: the mount's host is fixed, so the exact-IP rule is lost; kernel CIFS can't request deny-write; and an unmounted mount point is a local empty folder that unload would happily write into.
 
 The recommendation is an in-process client:
 
@@ -230,7 +230,7 @@ None of these pull tokio, async-std or smol; the lean check proves it per target
 
 ## Decisions for the owner
 
-1. **Linux SMB:** in-process client through the `Share` seam (recommended; keeps R35, credentials and deny-write) or "bring your own mount" (much less work, gives up R35 and deny-write, and needs the mount-point check). Recommendation: the seam.
+1. **Linux SMB:** in-process client through the `Share` seam (recommended; keeps the exact-IP rule, credentials and deny-write) or "bring your own mount" (much less work, gives up the exact-IP rule and deny-write, and needs the mount-point check). Recommendation: the seam.
 2. **macOS signing:** an Apple Developer ID and a Mac for the CI runner. Without both, macOS builds can be shared only as unsigned test builds that users must allow by hand.
 3. **Icons:** bundled Fluent UI System Icons on every OS (one UI source, Windows looks almost the same) or keep Segoe Fluent Icons on Windows (an extra codepoint table).
 4. **Wayland flyout:** accept compositor placement, or make the tray menu the main surface on Wayland.

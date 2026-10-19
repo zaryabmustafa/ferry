@@ -31,7 +31,7 @@ pub enum Report {
     /// Not started; a toast title and body for the user.
     Skipped { title: String, body: String },
     /// Not started: the worker's own check found this isn't the trip's place, or its bulk path
-    /// is blocked (Ruling R21); why, for Activity. `blocked_at`: the trip's own place, when the
+    /// is blocked; why, for Activity. `blocked_at`: the trip's own place, when the
     /// check found the laptop there and only the path is blocked.
     WrongPlace { why: String, blocked_at: Option<Location> },
 }
@@ -180,7 +180,7 @@ pub fn cargo_dir(cfg: &Config, paths: &Paths) -> PathBuf {
 }
 
 /// (source, destination) LAN roots for a pair. This side's comes from `lan_ip`, the address the
-/// location check validated (Ruling R35); the far side's is never copied to on this trip.
+/// location check validated; the far side's is never copied to on this trip.
 fn lan_roots(kind: Kind, cfg: &Config, lan_ip: IpAddr, p: &Pair) -> (PathBuf, PathBuf) {
     let here = unc_host(lan_ip);
     match kind {
@@ -197,8 +197,7 @@ fn unique_shares<'a>(pairs: &[&'a Pair], path: impl Fn(&'a Pair) -> &'a str) -> 
 }
 
 /// The pairs a trip works on. A fill takes the enabled ones. An unload takes those too, plus
-/// a disabled pair only while it still has cargo on the laptop or queued deletes (Rulings R31,
-/// R36); otherwise its destination share, possibly removed, would have no business in the trip.
+/// a disabled pair only while it still has cargo on the laptop or queued deletes; otherwise its destination share, possibly removed, would have no business in the trip.
 fn select_pairs<'a>(kind: Kind, cfg_pairs: &'a [Pair], manifest: &CargoManifest, queue: &DeleteQueue) -> Vec<&'a Pair> {
     let owes = |p: &Pair| {
         manifest.items.iter().any(|i| i.pair == p.id) || queue.pairs.get(&p.id).is_some_and(|q| !q.paths.is_empty())
@@ -243,7 +242,7 @@ pub fn run(kind: Kind, cfg: &Config, paths: &Paths, cancel: &AtomicBool, emit: &
     let (want, side) = if kind == Kind::Fill { (Location::Source, Side::Source) } else { (Location::Destination, Side::Destination) };
     let place = display_name(cfg, side);
     let locate_now = || net::adapters().ok().map(|a| locate(cfg, &a, &net::best_interface, &net::probe_445, &crate::vpn::check));
-    // Ruling R21, defence in depth: bulk work only where this trip belongs, checked fresh,
+    // Defence in depth: bulk work only where this trip belongs, checked fresh,
     // and never over a blocked path.
     let verified = Instant::now();
     let start = locate_now();
@@ -305,7 +304,7 @@ fn trip(
     remote_ok: &Cell<bool>,
     emit: &mut dyn FnMut(Event),
 ) -> Report {
-    // A disabled pair isn't filled, but what it already carries is still delivered (Ruling R31).
+    // A disabled pair isn't filled, but what it already carries is still delivered.
     let pairs = select_pairs(kind, &cfg.pairs, &CargoManifest::load(&paths.manifest).unwrap_or_default(), &DeleteQueue::load(&paths.deletes).unwrap_or_default());
     // Setup refuses overlapping destinations; a hand-edited config may still have them, and each
     // such pair would delete the other's files. Skip them until the folder list is fixed.

@@ -209,7 +209,7 @@ fn push_items(
                     continue;
                 }
                 Ok(PushOutcome::LaptopDamaged) => {
-                    // Ruling R32: retrying can't help. Drop it; the next fill carries it again.
+                    // Retrying can't help. Drop it; the next fill carries it again.
                     if let Err(e) = remove(&laptop) {
                         emit(err(format!("{}: {e}", item.rel)));
                         continue;

@@ -7,6 +7,7 @@ use ferry_core::config::Options;
 use ferry_core::deletes::DeleteQueue;
 use ferry_core::entry::long_path;
 use ferry_core::snapshot::{Change, Snapshot, SnapshotReader};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -149,6 +150,24 @@ fn load_queue(path: &Path, emit: &mut dyn FnMut(Event)) -> io::Result<DeleteQueu
     Ok(q)
 }
 
+/// Delete `rel` under the destination `root` and note it for the snapshot. On an error it is
+/// reported and handed back, for the caller to keep queued.
+fn delete_at(root: &Path, pair: &str, rel: String, snaps: &mut SnapBatch, emit: &mut dyn FnMut(Event)) -> Option<String> {
+    let path = root.join(&rel);
+    match remove(&path) {
+        Ok(()) => {
+            prune_dirs(root, &path);
+            snaps.add(pair, Change::Delete { rel: rel.clone() }, emit);
+            emit(Event::Deleted { pair: pair.to_string(), rel });
+            None
+        }
+        Err(e) => {
+            emit(Event::Error { pair: pair.to_string(), msg: format!("delete {rel}: {e}") });
+            Some(rel)
+        }
+    }
+}
+
 pub fn snap_path(snapshots: &Path, pair: &str) -> PathBuf {
     snapshots.join(format!("{pair}.snap"))
 }
@@ -204,22 +223,19 @@ const SNAP_EVERY: Duration = Duration::from_secs(30);
 /// rewrites a whole snapshot: every `SNAP_BATCH` changes or `SNAP_EVERY`, and on `flush`.
 pub(crate) struct SnapBatch<'a> {
     snapshots: &'a Path,
-    pending: Vec<(String, Vec<Change>)>,
+    pending: BTreeMap<String, Vec<Change>>,
     count: usize,
     since: Instant,
 }
 
 impl<'a> SnapBatch<'a> {
     pub(crate) fn new(snapshots: &'a Path) -> Self {
-        Self { snapshots, pending: vec![], count: 0, since: Instant::now() }
+        Self { snapshots, pending: BTreeMap::new(), count: 0, since: Instant::now() }
     }
 
     /// The number of snapshots this rewrote (0 unless the batch was due).
     pub(crate) fn add(&mut self, pair: &str, change: Change, emit: &mut dyn FnMut(Event)) -> usize {
-        match self.pending.iter_mut().find(|(p, _)| p == pair) {
-            Some((_, v)) => v.push(change),
-            None => self.pending.push((pair.to_string(), vec![change])),
-        }
+        self.pending.entry(pair.to_string()).or_default().push(change);
         self.count += 1;
         if self.count >= SNAP_BATCH || self.since.elapsed() >= SNAP_EVERY {
             self.flush(emit)
@@ -255,7 +271,7 @@ pub fn purge_unknown(
 ) -> io::Result<()> {
     let gone = |pair: &str| !known.iter().any(|k| k == pair);
     let mut m = load_manifest(manifest_path, emit)?;
-    let mut dropped: Vec<(String, u32)> = vec![];
+    let mut dropped: BTreeMap<String, u32> = BTreeMap::new();
     let before = m.clone();
     if let Some(p) = m.partial.take_if(|p| gone(&p.pair)) {
         let part = part_of(&cargo_dir.join(&p.pair).join(&p.rel));
@@ -275,10 +291,7 @@ pub fn purge_unknown(
             return true;
         }
         prune_dirs(cargo_dir, &f);
-        match dropped.iter_mut().find(|(p, _)| *p == i.pair) {
-            Some((_, n)) => *n += 1,
-            None => dropped.push((i.pair.clone(), 1)),
-        }
+        *dropped.entry(i.pair.clone()).or_default() += 1;
         false
     });
     if m != before {

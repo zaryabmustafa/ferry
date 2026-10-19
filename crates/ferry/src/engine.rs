@@ -66,6 +66,8 @@ pub struct Paths {
     pub cargo: PathBuf,
     /// Destination snapshots, one per pair (spec 4.4).
     pub snapshots: PathBuf,
+    /// Downloaded updates, and the files that tell the next start how an install went.
+    pub update: PathBuf,
 }
 
 impl Paths {
@@ -86,6 +88,7 @@ impl Paths {
             notified: state.join("oversize-notified.json"),
             cargo: state.join("cargo"),
             snapshots: state.join("snapshots"),
+            update: state.join("update"),
         })
     }
 }
@@ -144,7 +147,7 @@ pub fn run() -> i32 {
     let (tx, rx) = mpsc::channel();
     let waker = Waker { tx, hwnd: hwnd.0 as usize };
     let ipc = waker.clone();
-    if let Err(e) = crate::ipc_server::serve(Arc::new(move |req| ask(&ipc, req))) {
+    if let Err(e) = crate::ipc_server::serve(&ferry_core::ipc::pipe(), Arc::new(move |req| ask(&ipc, req))) {
         log.line(&format!("another engine owns the pipe, exiting: {e}"));
         tray::quit(hwnd);
         return 1;
@@ -324,11 +327,6 @@ impl Engine {
         }
     }
 
-    /// What the user calls this side.
-    fn name(&self, side: Side) -> String {
-        display_name(&self.cfg, side)
-    }
-
     /// Fresh location wanted (startup, settings changed).
     fn resolve(&mut self) {
         if self.sched.resolve() {
@@ -473,7 +471,7 @@ impl Engine {
     }
 
     fn trip_event(&mut self, e: Event) {
-        let (src, dest) = (self.name(Side::Source), self.name(Side::Destination));
+        let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         match e {
             Event::Progress { pair, rel, done, total } => self.progress(pair, rel, done, total),
             Event::Carried { pair, rel, size } => {
@@ -552,7 +550,7 @@ impl Engine {
         let cancelled = trip.as_ref().is_some_and(|t| t.cancel.load(Ordering::Relaxed));
         let unload = trip.is_some_and(|t| t.kind == Kind::Unload);
         let lost = r.path_lost;
-        let (src, dest) = (self.name(Side::Source), self.name(Side::Destination));
+        let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         // At the destination, anything left undone gets one more try later, not only at the next arrival.
         if retry_at_destination(unload, &r) && self.sched.loc == Location::Destination {
             tray::set_timer(self.hwnd, T_RECHECK, DESTINATION_RETRY_MS);
@@ -838,7 +836,7 @@ impl Engine {
         let resp = match saved {
             Ok(cfg) => {
                 self.cfg = cfg;
-                self.log.line(&format!("remembered this network as {}", self.name(side)));
+                self.log.line(&format!("remembered this network as {}", display_name(&self.cfg, side)));
                 self.resolve();
                 Response::Ok
             }
@@ -885,7 +883,7 @@ impl Engine {
 
     /// At start: say how the update that ended the last run went.
     fn after_update(&mut self) {
-        match update::dir().and_then(|d| update::after_restart(&d, update::VERSION)) {
+        match update::after_restart(&self.paths.update, update::VERSION) {
             Some((v, true)) => {
                 self.log.line(&format!("updated to {v}"));
                 self.notify(None, &format!("Ferry updated to {v}"), "The new version is running.");
@@ -906,23 +904,28 @@ impl Engine {
             return;
         }
         let now = unix_now();
-        let Some(dir) = update::dir() else { return };
         let (paused, trip, open) = (self.paused(), self.trip.is_some(), self.windows_open());
         let idle = !self.updating && self.ready.is_none() && now >= self.update_retry_at;
         let since = now - self.update_ok_at;
         // net::metered() is a COM call, so it is asked last.
-        if !idle || !update::may_auto_check(self.cfg.options.auto_update, self.installed, paused, trip, open, since, false) || net::metered() {
+        if !idle || !update::may_auto_check(self.cfg.options.auto_update, self.installed, paused, trip, open, since) || net::metered() {
             return;
         }
+        self.spawn_fetch(false);
+    }
+
+    /// Look for a newer release on a worker and, when there is one, download and verify it. An
+    /// automatic check passes over a version that failed before; one the user asked for doesn't.
+    fn spawn_fetch(&mut self, manual: bool) {
         self.updating = true;
-        let w = self.waker.clone();
+        let (w, dir) = (self.waker.clone(), self.paths.update.clone());
         thread::spawn(move || {
             let o = match update::check(15_000) {
-                Outcome::Available(r) if update::skipped(&dir).as_deref() == Some(r.version.as_str()) => Outcome::UpToDate,
+                Outcome::Available(r) if !manual && update::skipped(&dir).as_deref() == Some(r.version.as_str()) => Outcome::UpToDate,
                 Outcome::Available(r) => update::fetch(r, &dir),
                 o => o,
             };
-            w.send(Input::Update(o, false));
+            w.send(Input::Update(o, manual));
         });
     }
 
@@ -944,16 +947,14 @@ impl Engine {
             Outcome::BadChecksum(v) if !update::give_up_after_mismatch(&mut self.bad_sums, &v) => self.update_retry_at = now + 3600,
             Outcome::BadChecksum(v) | Outcome::BadSignature(v) => {
                 self.update_ok_at = now;
-                if let Some(d) = update::dir() {
-                    update::skip(&d, &v);
-                }
+                update::skip(&self.paths.update, &v);
             }
             Outcome::Ready(r, path, sha256) => {
                 self.update_ok_at = now;
                 self.ready = Some((r.version, path, sha256, manual));
                 self.install_ready();
             }
-            Outcome::UpToDate | Outcome::NotFound | Outcome::Available(_) => self.update_ok_at = now,
+            Outcome::UpToDate | Outcome::Available(_) => self.update_ok_at = now,
         }
     }
 
@@ -975,10 +976,8 @@ impl Engine {
             }
             return false;
         }
-        let marker = update::dir().map(|d| d.join("installing"));
-        if let Some(m) = &marker {
-            let _ = fs::write(m, &v);
-        }
+        let marker = self.paths.update.join("installing");
+        let _ = fs::write(&marker, &v);
         self.log.line(&format!("installing update {v}"));
         match std::process::Command::new(&path).arg("/S").spawn() {
             Ok(_) => {
@@ -990,9 +989,7 @@ impl Engine {
                 if manual {
                     self.notify(None, "Ferry wasn't updated", &format!("The installer didn't start: {e}"));
                 }
-                if let Some(m) = &marker {
-                    let _ = fs::remove_file(m);
-                }
+                let _ = fs::remove_file(&marker);
                 false
             }
         }
@@ -1019,7 +1016,6 @@ impl Engine {
                 "This copy of Ferry wasn't installed with the installer, so it can't update itself. Download the new version from the releases page.".into(),
             );
         }
-        let Some(dir) = update::dir() else { return Response::Err("LOCALAPPDATA is not set.".into()) };
         if let Some((v, path, sha256, _)) = self.ready.take() {
             // Already downloaded and verified, waiting for a window to close or the pause to end.
             self.ready = Some((v, path, sha256, true));
@@ -1027,16 +1023,8 @@ impl Engine {
         } else if self.updating {
             self.manual_asked = true;
         } else {
-            self.updating = true;
             self.log.line("update requested");
-            let w = self.waker.clone();
-            thread::spawn(move || {
-                let o = match update::check(15_000) {
-                    Outcome::Available(r) => update::fetch(r, &dir),
-                    o => o,
-                };
-                w.send(Input::Update(o, true));
-            });
+            self.spawn_fetch(true);
         }
         Response::Ok
     }

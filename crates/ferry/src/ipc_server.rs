@@ -1,5 +1,5 @@
 //! Named-pipe server: one JSON request line -> one JSON response line per connection.
-use ferry_core::ipc::{decode, encode, pipe, Request, Response};
+use ferry_core::ipc::{decode, encode, Request, Response};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::windows::io::{AsRawHandle, FromRawHandle};
@@ -25,13 +25,9 @@ const MAX_DRAIN: usize = 16 << 20;
 /// Concurrent connection threads; extra connections are dropped immediately.
 const MAX_IN_FLIGHT: usize = 8;
 
-/// Serve this user's [`pipe`]. The pipe is created before this returns, so a startup failure
+/// Serve the pipe `name` (the engine passes `ipc::pipe()`). It is created before this returns, so a startup failure
 /// (e.g. another engine already owns the name) is reported to the caller.
-pub fn serve(handler: Handler) -> io::Result<()> {
-    serve_on(&pipe(), handler)
-}
-
-fn serve_on(name: &str, handler: Handler) -> io::Result<()> {
+pub fn serve(name: &str, handler: Handler) -> io::Result<()> {
     let listener = Listener::bind(name)?;
     std::thread::Builder::new().name("ipc".into()).spawn(move || {
         if let Err(e) = listener.run(handler) {
@@ -198,7 +194,7 @@ mod tests {
             Request::Status => Response::Status(Status { location: Location::Destination, phase: Phase::Idle, remote_ok: true, cap_bytes: 1, ..Default::default() }),
             _ => Response::Ok,
         });
-        serve_on(&n, h).unwrap(); // returns once the pipe exists
+        serve(&n, h).unwrap(); // returns once the pipe exists
     }
 
     #[test]
@@ -275,6 +271,6 @@ mod tests {
     fn second_server_on_same_name_fails_at_startup() {
         let name = format!("{}-e", test_pipe());
         start(&name);
-        assert!(serve_on(&name, Arc::new(|_| Response::Ok)).is_err());
+        assert!(serve(&name, Arc::new(|_| Response::Ok)).is_err());
     }
 }

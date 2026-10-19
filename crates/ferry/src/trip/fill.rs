@@ -1,5 +1,5 @@
 use super::{
-    load_manifest, load_queue, open_snapshot, part_of, unreachable, prune_dirs, remove, Event, FillReport, DestinationSnap, SnapBatch, TripCtx,
+    delete_at, load_manifest, load_queue, open_snapshot, part_of, unreachable, remove, Event, FillReport, DestinationSnap, SnapBatch, TripCtx,
 };
 use crate::win::copy::{copy_hashed, finalize};
 use ferry_core::cargo::{CargoItem, CargoManifest, Partial};
@@ -7,7 +7,7 @@ use ferry_core::deletes::{decide, DeleteDecision, PairDeletes};
 use ferry_core::diff::{diff_pair, Candidate, DestinationView};
 use ferry_core::entry::long_path;
 use ferry_core::load::{budget, pick_load};
-use ferry_core::snapshot::{Change, SnapshotReader};
+use ferry_core::snapshot::SnapshotReader;
 use std::fs;
 use std::io;
 use std::os::windows::fs::MetadataExt;
@@ -128,18 +128,9 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
             (DeleteDecision::Apply, Some(destination_meta)) => {
                 let mut failed = vec![];
                 for rel in std::mem::take(&mut q.paths) {
-                    let destination = destination_meta.join(&rel);
-                    match remove(&destination) {
-                        Ok(()) => {
-                            prune_dirs(destination_meta, &destination);
-                            snaps.add(pair, Change::Delete { rel: rel.clone() }, emit);
-                            report.deleted += 1;
-                            emit(Event::Deleted { pair: pair.to_string(), rel });
-                        }
-                        Err(e) => {
-                            emit(err(format!("delete {rel}: {e}")));
-                            failed.push(rel);
-                        }
+                    match delete_at(destination_meta, pair, rel, &mut snaps, emit) {
+                        None => report.deleted += 1,
+                        Some(rel) => failed.push(rel),
                     }
                 }
                 snaps.flush(emit);

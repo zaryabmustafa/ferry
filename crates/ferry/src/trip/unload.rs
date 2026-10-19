@@ -1,5 +1,5 @@
 use super::{
-    load_manifest, load_queue, part_of, prune_dirs, remove, snap_path, Event, PairRoots, SnapBatch, TripCtx,
+    delete_at, load_manifest, load_queue, part_of, remove, snap_path, Event, PairRoots, SnapBatch, TripCtx,
     UnloadReport, record_failed,
 };
 use crate::win::copy::{copy_hashed, finalize, hash_file};
@@ -255,17 +255,9 @@ fn apply_deletes(ctx: &TripCtx, roots: &PairRoots, paths: &mut Vec<String>, snap
         let absent = roots.source_meta.as_deref().map_or(Some(true), |m| source_absent(m, &rel));
         match absent {
             Some(false) => {}
-            Some(true) => match remove(&roots.destination.join(&rel)) {
-                Ok(()) => {
-                    prune_dirs(&roots.destination, &roots.destination.join(&rel));
-                    snaps.add(&roots.id, Change::Delete { rel: rel.clone() }, emit);
-                    deleted += 1;
-                    emit(Event::Deleted { pair: roots.id.clone(), rel });
-                }
-                Err(e) => {
-                    emit(Event::Error { pair: roots.id.clone(), msg: format!("delete {rel}: {e}") });
-                    keep.push(rel);
-                }
+            Some(true) => match delete_at(&roots.destination, &roots.id, rel, snaps, emit) {
+                None => deleted += 1,
+                Some(rel) => keep.push(rel),
             },
             None => {
                 unknown += 1;

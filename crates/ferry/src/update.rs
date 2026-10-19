@@ -28,8 +28,6 @@ const DAY_SECS: i64 = 86_400;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
     UpToDate,
-    /// The releases API answered 404: no release yet, or the repository is private.
-    NotFound,
     Available(Release),
     /// Downloaded and verified, ready to run; the last part is its SHA-256 (lowercase hex), to
     /// check again just before it runs.
@@ -38,11 +36,6 @@ pub enum Outcome {
     /// The release's SHA256SUMS.txt.sig is missing, or isn't `UPDATE_KEY`'s signature of it.
     BadSignature(String),
     Failed(String),
-}
-
-/// `%LOCALAPPDATA%\Ferry\update`.
-pub fn dir() -> Option<PathBuf> {
-    std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("Ferry").join("update"))
 }
 
 /// This exe is the one the installer put in place (not a portable or development copy).
@@ -80,8 +73,9 @@ fn same_dir(exe_dir: &Path, install_location: &str) -> bool {
 }
 
 /// Whether the engine may look for an update on its own right now.
-pub fn may_auto_check(on: bool, installed: bool, paused: bool, trip: bool, windows_open: bool, since_ok_secs: i64, metered: bool) -> bool {
-    on && installed && !paused && !trip && !windows_open && since_ok_secs >= DAY_SECS && !metered
+/// (Whether the connection is metered is asked after this, since that is a COM call.)
+pub fn may_auto_check(on: bool, installed: bool, paused: bool, trip: bool, windows_open: bool, since_ok_secs: i64) -> bool {
+    on && installed && !paused && !trip && !windows_open && since_ok_secs >= DAY_SECS
 }
 
 /// Asks the releases API whether there is something newer than this build.
@@ -94,7 +88,8 @@ pub fn check(timeout_ms: u32) -> Outcome {
             Some(r) if is_newer(&r.version, VERSION) => Outcome::Available(r),
             _ => Outcome::UpToDate,
         },
-        Err(HttpError::Status(404)) => Outcome::NotFound,
+        // No release yet, or the repository is private: nothing newer, quietly.
+        Err(HttpError::Status(404)) => Outcome::UpToDate,
         Err(e) => Outcome::Failed(e.to_string()),
     }
 }
@@ -179,7 +174,7 @@ pub fn skip(dir: &Path, version: &str) {
 pub fn manual_failure(o: &Outcome) -> Option<String> {
     match o {
         Outcome::Ready(..) | Outcome::Available(_) => None,
-        Outcome::UpToDate | Outcome::NotFound => Some("No newer version of Ferry was found.".into()),
+        Outcome::UpToDate => Some("No newer version of Ferry was found.".into()),
         Outcome::BadChecksum(v) => Some(format!("Ferry {v} failed its checksum and wasn't installed.")),
         Outcome::BadSignature(v) => Some(format!("Ferry {v} isn't signed with Ferry's update key and wasn't installed.")),
         Outcome::Failed(e) => Some(format!("Ferry couldn't update: {e}")),
@@ -190,7 +185,7 @@ pub fn manual_failure(o: &Outcome) -> Option<String> {
 /// neither has a failure right after another one (hourly retries while offline).
 pub fn outcome_line(o: &Outcome, failed_before: bool) -> Option<String> {
     match o {
-        Outcome::UpToDate | Outcome::NotFound | Outcome::Available(_) | Outcome::Ready(..) => None,
+        Outcome::UpToDate | Outcome::Available(_) | Outcome::Ready(..) => None,
         Outcome::BadChecksum(v) => Some(format!("update {v} failed its checksum, not installed")),
         Outcome::BadSignature(v) => Some(format!("update {v} isn't signed with Ferry's update key, not installed")),
         Outcome::Failed(_) if failed_before => None,
@@ -205,15 +200,14 @@ mod tests {
 
     #[test]
     fn may_auto_check_guards() {
-        let ok = |on, inst, paused, trip, win, since, metered| may_auto_check(on, inst, paused, trip, win, since, metered);
-        assert!(ok(true, true, false, false, false, 86_400, false));
-        assert!(!ok(false, true, false, false, false, 86_400, false), "switched off");
-        assert!(!ok(true, false, false, false, false, 86_400, false), "portable");
-        assert!(!ok(true, true, true, false, false, 86_400, false), "paused");
-        assert!(!ok(true, true, false, true, false, 86_400, false), "trip running");
-        assert!(!ok(true, true, false, false, true, 86_400, false), "a window is open");
-        assert!(!ok(true, true, false, false, false, 86_399, false), "checked within a day");
-        assert!(!ok(true, true, false, false, false, 86_400, true), "metered");
+        let ok = may_auto_check;
+        assert!(ok(true, true, false, false, false, 86_400));
+        assert!(!ok(false, true, false, false, false, 86_400), "switched off");
+        assert!(!ok(true, false, false, false, false, 86_400), "portable");
+        assert!(!ok(true, true, true, false, false, 86_400), "paused");
+        assert!(!ok(true, true, false, true, false, 86_400), "trip running");
+        assert!(!ok(true, true, false, false, true, 86_400), "a window is open");
+        assert!(!ok(true, true, false, false, false, 86_399), "checked within a day");
     }
 
     #[test]
@@ -257,7 +251,6 @@ mod tests {
 
     #[test]
     fn outcome_lines() {
-        assert_eq!(outcome_line(&Outcome::NotFound, false), None);
         assert_eq!(outcome_line(&Outcome::UpToDate, false), None);
         assert_eq!(outcome_line(&Outcome::BadChecksum("0.2.3".into()), false).as_deref(), Some("update 0.2.3 failed its checksum, not installed"));
         assert_eq!(outcome_line(&Outcome::BadSignature("0.2.3".into()), false).as_deref(), Some("update 0.2.3 isn't signed with Ferry's update key, not installed"));
@@ -371,7 +364,6 @@ mod tests {
         assert_eq!(manual_failure(&Outcome::Ready(r.clone(), PathBuf::new(), String::new())), None);
         assert_eq!(manual_failure(&Outcome::Available(r)), None);
         assert_eq!(manual_failure(&Outcome::UpToDate).as_deref(), Some("No newer version of Ferry was found."));
-        assert_eq!(manual_failure(&Outcome::NotFound).as_deref(), Some("No newer version of Ferry was found."));
         assert_eq!(manual_failure(&Outcome::BadChecksum("0.2.3".into())).as_deref(), Some("Ferry 0.2.3 failed its checksum and wasn't installed."));
         assert_eq!(
             manual_failure(&Outcome::BadSignature("0.2.3".into())).as_deref(),

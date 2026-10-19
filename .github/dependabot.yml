@@ -1,12 +1,19 @@
 # Keeps the SHA-pinned GitHub Actions and the Cargo dependencies current, as pull requests.
+# Minor and patch updates arrive as one pull request per ecosystem; majors still come one each.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        update-types: [minor, patch]
   - package-ecosystem: cargo
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      crates:
+        update-types: [minor, patch]

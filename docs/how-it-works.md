@@ -45,12 +45,14 @@ Locations shows the path status in plain words, for example "Direct on this netw
 
 ## What Ferry trusts
 
-Ferry trusts the network it recognises. A router MAC address and an answer on port 445 are easy for someone on that network to imitate, and Ferry doesn't yet check that the server is the one it learned.
+A router MAC address and an answer on port 445 are easy for someone on that network to imitate, so Ferry also checks the server itself before it copies anything.
 
-On a network you don't control, someone who copied your router's MAC address and your server's LAN address could receive the files Ferry unloads and the SMB sign-in, or hand Ferry files of their own to carry to your destination. Delete thresholds still apply.
+- **An identity file on each server.** The first trip to a server leaves a random 128-bit token in a hidden `.ferry-id` file at the root of the first share Ferry uses there, and keeps a copy on the laptop (`identity.txt`). Every later trip reads it back first. A server without the file, or with a different one, is refused: nothing is copied, and Ferry says "This may not be {server}". Ferry never mirrors or deletes `.ferry-id`.
+- **A replaced or reset server.** Choose Remember this network for it in Locations. The next trip leaves a new token.
+- **A share Ferry can't write to.** No token can be left, so that server stays unchecked, and Activity says so each trip.
+- **SMB signing.** The check runs after Ferry signs in, so a look-alike still sees the sign-in (an NTLM response, which can be cracked offline if the password is weak). With signing required, a server that doesn't know the password can't complete the sign-in. Ferry logs a note at startup when Windows doesn't require it. To require it, run `Set-SmbClientConfiguration -RequireSecuritySignature $true` in an elevated PowerShell; your servers must support signing.
 
-- Pause Ferry on networks you don't trust.
-- Require SMB signing on your servers if they support it.
+Someone who can read the share (and so the token) can still imitate the server. Pause Ferry on networks you don't trust.
 
 ## With or without a remote address
 
@@ -89,6 +91,7 @@ Snapshots are stored one per folder pair and read one directory at a time, so me
 | Cargo (files on the laptop) | `%LOCALAPPDATA%\Ferry\cargo\<pair>\` by default; change the folder in Settings |
 | Cargo list and held delete queue | `%LOCALAPPDATA%\Ferry\manifest.json`, `deletes.json` |
 | Destination snapshots (sneakernet mode) | `%LOCALAPPDATA%\Ferry\snapshots\` |
+| Server identity tokens ([What Ferry trusts](#what-ferry-trusts)) | `%LOCALAPPDATA%\Ferry\identity.txt`, and a hidden `.ferry-id` at the root of one share on each server |
 | Activity log | `%LOCALAPPDATA%\Ferry\activity.log` (rotates at 1 MB to `activity.1.log`) |
 | Oversize files already announced | `%LOCALAPPDATA%\Ferry\oversize-notified.json` |
 | Downloaded update, until it is installed | `%LOCALAPPDATA%\Ferry\update\` |
@@ -100,7 +103,7 @@ Nothing is sent anywhere except to your two servers (and, if you use Tailscale, 
 
 ## Backup and restore
 
-Settings > Backup > Export saves one JSON file with `config.toml` (servers, folder pairs, learned networks, options), the cargo list, the delete queue and the destination snapshots. It has server addresses and user names but no passwords, which stay in Credential Manager.
+Settings > Backup > Export saves one JSON file with `config.toml` (servers, folder pairs, learned networks, options), the cargo list, the delete queue, the destination snapshots and the server identity tokens. It has server addresses and user names but no passwords, which stay in Credential Manager.
 
 Restore is under Settings > Backup, and as Restore from a backup in the sidebar of first-run setup, so a fresh install can skip setup. Ferry must be running, and it does the restore itself:
 

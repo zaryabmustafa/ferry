@@ -6,9 +6,9 @@ Measured on 2026-10-16 on the development laptop (Windows 11). Rows 1, 2, 3, 13 
 
 | # | Metric | Target | Measured | Result |
 |---|--------|--------|----------|--------|
-| 1 | `ferry.exe` size | small, no UI toolkit | 1,082,880 bytes (1.03 MiB) | Pass on v1 (8ada633); not yet run on v2 |
-| 2 | `ferry-ui.exe` size | no target | 12,908,544 bytes (12.3 MiB, includes Slint software renderer) | Info on v1; not yet run on v2 |
-| 3 | `slint`, `winit`, `tokio` in `cargo tree -p ferry` | none | 0 matches in 101 lines | Pass on v1; not yet run on v2 |
+| 1 | `ferry.exe` size | no target | 14,988,288 bytes (14.3 MiB, MSVC release build of 0.2.0 plus the 2026-10-19 audit fixes; one program with the windows built in) | Info |
+| 2 | `ferry-ui.exe` size | no target | Retired: since the single-program change the windows are part of `ferry.exe` (row 1). v1 measured 12,908,544 bytes | Retired |
+| 3 | `slint`, `winit`, `tokio` in `cargo tree -p ferry` | none | Retired: `ferry.exe` now links Slint for its windows. CI still checks that `ferry-core` has no UI toolkit | Retired |
 | 4 | Engine private bytes, idle (older build) | under 5 MB | 4,374,528 bytes (4.17 MiB), identical in all six samples | Pass for the older v1 build; not yet run on v2 |
 | 5 | Engine working set, idle (older build) | under 5 MB | 2.49 to 3.05 MB over 13.5 minutes | Pass for the older v1 build; not yet run on v2 |
 | 6 | Engine CPU time across 5 minutes idle (older build) | unchanged | +0.12 s over 5 min 42 s, +0.33 s over 13.5 min (about 0.04% of one core), not flat | Inconclusive (near zero), pending step A (powercfg); not yet run on v2 |

@@ -69,6 +69,26 @@ pub fn save_credential(target: &str, user: &str, password: &str) -> io::Result<(
     r.map_err(os_err)
 }
 
+/// Windows requires SMB signing on every connection it makes (`RequireSecuritySignature`). With
+/// it, a look-alike server that doesn't know the password can't finish signing in.
+pub fn signing_required() -> bool {
+    use windows::core::w;
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD};
+    let (mut v, mut n) = (0u32, 4u32);
+    let r = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            w!(r"SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters"),
+            w!("RequireSecuritySignature"),
+            RRF_RT_REG_DWORD,
+            None,
+            Some((&raw mut v).cast()),
+            Some(&mut n),
+        )
+    };
+    r.is_ok() && v == 1
+}
+
 /// Open an SMB session to `\\host\share` (no drive letter) with the credential saved under `target`.
 pub fn connect(host: &str, share: &str, target: &str) -> io::Result<()> {
     let t = wide(target);

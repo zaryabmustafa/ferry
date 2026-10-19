@@ -1,7 +1,7 @@
 //! One trip on the worker thread: connect shares, map pair roots, run fill or unload.
 use super::fill::run_fill;
 use super::unload::run_unload;
-use super::{purge_unknown, unreachable, Event, FillReport, PairRoots, TripCtx, UnloadReport};
+use super::{identity, purge_unknown, unreachable, Event, FillReport, PairRoots, TripCtx, UnloadReport};
 use crate::engine::Paths;
 use crate::win::{net, power, smb};
 use ferry_core::cargo::CargoManifest;
@@ -345,6 +345,30 @@ fn trip(
         }
         Err((share, e)) => return share_failure(here_name, &here.user, &lan_host, &share, &e),
     };
+    // Audit S1: the network and the port answer are easy to imitate; the token this laptop left
+    // on the real server isn't. Checked before anything is copied.
+    if let Some(p) = pairs.first() {
+        let share_root = PathBuf::from(format!(r"\\{lan_host}\{}", share_of(here_path(kind, p))));
+        let side = if kind == Kind::Fill { Side::Source } else { Side::Destination };
+        match identity::check(&paths.identity, side, &share_root, &identity::new_token) {
+            Ok(identity::Checked::Matches) => {}
+            Ok(identity::Checked::Pinned) => {
+                emit(Event::Info { pair: String::new(), msg: format!("left an identity file on {here_name}, so a look-alike server can be told apart") })
+            }
+            Ok(identity::Checked::NotPinned(e)) => emit(Event::Info {
+                pair: String::new(),
+                msg: format!("couldn't leave an identity file on {here_name} ({e}), so Ferry can't tell it from a look-alike"),
+            }),
+            Err(why) => {
+                return Report::Skipped {
+                    title: format!("This may not be {here_name}"),
+                    body: format!(
+                        "The server at {lan_host} looks like {here_name} but {why}, so Ferry won't copy here. If you replaced or reset {here_name}, choose Remember this network for it in Ferry, Locations."
+                    ),
+                }
+            }
+        }
+    }
     let there_shares = unique_shares(&pairs, |p| if kind == Kind::Fill { &p.destination_path } else { &p.source_path });
     // Shares on the far server that could not be opened over the remote address.
     let mut there_down: Vec<&str> = vec![];

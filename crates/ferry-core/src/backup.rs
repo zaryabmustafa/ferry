@@ -25,6 +25,10 @@ struct Backup {
     deletes: DeleteQueue,
     /// File name in the snapshots folder (`<pair>.snap`, `<pair>.snap.recorded`) → its text.
     snapshots: BTreeMap<String, String>,
+    /// `identity.txt` (beside the cargo list): the tokens left on each server, so a restored
+    /// laptop still recognises them.
+    #[serde(default)]
+    identity: String,
 }
 
 /// Where the files a backup holds live.
@@ -47,6 +51,7 @@ pub struct Restored {
 /// The backup file's text.
 pub fn export(f: &Files, version: &str) -> io::Result<String> {
     let config = fs::read_to_string(f.config)?;
+    let identity = fs::read_to_string(identity_path(f)).unwrap_or_default();
     let mut snapshots = BTreeMap::new();
     for e in fs::read_dir(f.snapshots).into_iter().flatten().flatten() {
         let name = e.file_name().to_string_lossy().into_owned();
@@ -61,6 +66,7 @@ pub fn export(f: &Files, version: &str) -> io::Result<String> {
         manifest: CargoManifest::load(f.manifest)?,
         deletes: DeleteQueue::load(f.deletes)?,
         snapshots,
+        identity,
     };
     serde_json::to_string_pretty(&b).map_err(io::Error::other)
 }
@@ -90,7 +96,8 @@ pub fn restore(text: &str, f: &Files, default_cargo: &Path, dest: &str) -> Resul
     let bad = ids.iter().any(|id| !safe_name(id))
         || b.manifest.items.iter().any(|i| !safe_name(&i.pair) || !rel_ok(&i.rel))
         || b.deletes.pairs.iter().any(|(id, p)| !safe_name(id) || !p.paths.iter().all(|r| rel_ok(r)))
-        || b.snapshots.iter().any(|(name, text)| name.ends_with(".snap") && !snapshot_ok(text));
+        || b.snapshots.iter().any(|(name, text)| name.ends_with(".snap") && !snapshot_ok(text))
+        || !identity_ok(&b.identity);
     if bad {
         return Err("This backup is damaged: it names files outside Ferry's folders.".into());
     }
@@ -124,12 +131,25 @@ pub fn restore(text: &str, f: &Files, default_cargo: &Path, dest: &str) -> Resul
     }
     manifest.save(f.manifest).map_err(io)?;
     b.deletes.save(f.deletes).map_err(io)?;
+    write_atomic(&identity_path(f), b.identity.as_bytes()).map_err(io)?;
     if let Some(d) = f.config.parent() {
         fs::create_dir_all(d).map_err(io)?;
     }
     // Last, so a failure above leaves the settings as they were.
     write_atomic(f.config, b.config.as_bytes()).map_err(io)?;
     Ok(Restored { kept, dropped: before - kept })
+}
+
+fn identity_path(f: &Files) -> std::path::PathBuf {
+    f.manifest.with_file_name("identity.txt")
+}
+
+/// `source <hex>` / `destination <hex>` lines, nothing else.
+fn identity_ok(text: &str) -> bool {
+    text.lines().all(|l| match l.split_once(' ') {
+        Some(("source" | "destination", t)) => t.len() <= 64 && t.bytes().all(|b| b.is_ascii_hexdigit()),
+        _ => l.trim().is_empty(),
+    })
 }
 
 /// A relative path under a folder: one or more safe names.
@@ -194,6 +214,7 @@ mod tests {
         fs::write(s.join("docs.snap"), SNAP).unwrap();
         fs::write(s.join("docs.snap.recorded"), "").unwrap();
         fs::write(s.join("docs.snap.tmp"), "junk").unwrap();
+        fs::write(m.with_file_name("identity.txt"), "source 00ff\ndestination \n").unwrap();
         let text = export(&Files { config: &c, manifest: &m, deletes: &d, snapshots: &s }, "0.2.4").unwrap();
         (e, text)
     }
@@ -218,6 +239,7 @@ mod tests {
         assert_eq!(DeleteQueue::load(&d).unwrap().pairs["docs"].paths, ["old.txt"]);
         assert_eq!(fs::read_to_string(s.join("docs.snap")).unwrap(), SNAP);
         assert!(s.join("docs.snap.recorded").exists() && !s.join("stale.snap").exists());
+        assert_eq!(fs::read_to_string(m.with_file_name("identity.txt")).unwrap(), "source 00ff\ndestination \n");
     }
 
     #[test]

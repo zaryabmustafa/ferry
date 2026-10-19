@@ -71,6 +71,8 @@ pub struct Paths {
     pub snapshots: PathBuf,
     /// Downloaded updates, and the files that tell the next start how an install went.
     pub update: PathBuf,
+    /// The tokens left on each server (audit S1, `trip::identity`).
+    pub identity: PathBuf,
 }
 
 impl Paths {
@@ -92,6 +94,7 @@ impl Paths {
             cargo: state.join("cargo"),
             snapshots: state.join("snapshots"),
             update: state.join("update"),
+            identity: state.join("identity.txt"),
         })
     }
 }
@@ -235,6 +238,9 @@ pub struct Engine {
 impl Engine {
     fn new(hwnd: HWND, waker: Waker, paths: Paths, mut log: ActivityLog) -> Self {
         log.line("Ferry started");
+        if !smb::signing_required() {
+            log.line("Windows doesn't require SMB signing, so a look-alike server could still receive the sign-in; see What Ferry trusts in Ferry's docs");
+        }
         let mut attention = vec![];
         let cfg = config::load(&paths.config).unwrap_or_else(|e| {
             log.line(&format!("settings file unreadable, using defaults: {e}"));
@@ -841,6 +847,11 @@ impl Engine {
             Ok(cfg) => {
                 self.cfg = cfg;
                 self.log.line(&format!("remembered this network as {}", display_name(&self.cfg, side)));
+                // Remembering again is how a replaced or reset server is trusted: the next trip
+                // there leaves a new identity file.
+                if let Err(e) = crate::trip::identity::forget(&self.paths.identity, side) {
+                    self.log.line(&format!("identity of {}: {e}", display_name(&self.cfg, side)));
+                }
                 self.resolve();
                 Response::Ok
             }

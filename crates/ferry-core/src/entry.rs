@@ -65,7 +65,11 @@ pub fn safe_name(name: &str) -> bool {
     !name.is_empty() && name != "." && name != ".." && !name.chars().any(|c| matches!(c, '\\' | '/' | ':') || c.is_control())
 }
 
-/// List one directory, sorted case-insensitively; skips `.ferry-part` temp files. A name that is
+/// The file Ferry leaves at a share's root so it can tell the real server from a look-alike.
+pub const IDENTITY_FILE: &str = ".ferry-id";
+
+/// List one directory, sorted case-insensitively; skips `.ferry-part` temp files and Ferry's
+/// identity file. A name that is
 /// not [`safe_name`] fails the whole listing (`InvalidData`), so it is treated as unlistable:
 /// nothing in it is copied by that name and no deletes follow from it.
 pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
@@ -82,6 +86,9 @@ pub fn list_dir_and_parts(dir: &Path) -> io::Result<(Vec<Entry>, Vec<String>)> {
         })?;
         if name.ends_with(".ferry-part") {
             parts.push(name);
+            continue;
+        }
+        if name == IDENTITY_FILE {
             continue;
         }
         let m = de.metadata()?;
@@ -118,11 +125,12 @@ mod tests {
     }
 
     #[test]
-    fn list_dir_sorts_and_skips_parts() {
+    fn list_dir_sorts_and_skips_parts_and_the_identity_file() {
         let d = tempfile::tempdir().unwrap();
         std::fs::write(d.path().join("b.zip"), b"bb").unwrap();
         std::fs::write(d.path().join("A.zip"), b"a").unwrap();
         std::fs::write(d.path().join("c.zip.ferry-part"), b"x").unwrap();
+        std::fs::write(d.path().join(IDENTITY_FILE), b"token").unwrap();
         std::fs::create_dir(d.path().join("sub")).unwrap();
         let names: Vec<_> = list_dir(d.path()).unwrap().into_iter().map(|e| e.name).collect();
         assert_eq!(names, ["A.zip", "b.zip", "sub"]);

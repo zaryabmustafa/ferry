@@ -69,16 +69,6 @@ impl Snapshot {
     pub fn apply(path: &Path, changes: &[Change]) -> io::Result<()> {
         rewrite(path, &edits(changes))
     }
-
-    /// A verified push landed at the destination. Without a snapshot this does nothing.
-    pub fn apply_push(path: &Path, rel: &str, size: u64, mtime: i64) -> io::Result<()> {
-        Self::apply(path, &[Change::Push { rel: rel.into(), size, mtime }])
-    }
-
-    /// A delete was applied at the destination. Without a snapshot this does nothing.
-    pub fn apply_delete(path: &Path, rel: &str) -> io::Result<()> {
-        Self::apply(path, &[Change::Delete { rel: rel.into() }])
-    }
 }
 
 /// One change verified at the destination.
@@ -361,13 +351,13 @@ mod tests {
     fn pushes_and_deletes_update_the_snapshot() {
         let (d, snap) = tree();
         Snapshot::record(&d.path().join("home"), &snap).unwrap();
-        Snapshot::apply_push(&snap, "a0.zip", 9, 77).unwrap();
-        Snapshot::apply_push(&snap, "b.zip", 20, 88).unwrap(); // replaces
-        Snapshot::apply_push(&snap, "new\\dir\\n.zip", 1, 5).unwrap(); // new folders
-        Snapshot::apply_push(&snap, "SUB\\c2.zip", 6, 6).unwrap(); // existing folder, other case
-        Snapshot::apply_delete(&snap, "A.zip").unwrap();
-        Snapshot::apply_delete(&snap, "sub\\deep\\D.ZIP").unwrap();
-        Snapshot::apply_delete(&snap, "not\\there.zip").unwrap();
+        Snapshot::apply(&snap, &[Change::Push { rel: "a0.zip".into(), size: 9, mtime: 77 }]).unwrap();
+        Snapshot::apply(&snap, &[Change::Push { rel: "b.zip".into(), size: 20, mtime: 88 }]).unwrap(); // replaces
+        Snapshot::apply(&snap, &[Change::Push { rel: "new\\dir\\n.zip".into(), size: 1, mtime: 5 }]).unwrap(); // new folders
+        Snapshot::apply(&snap, &[Change::Push { rel: "SUB\\c2.zip".into(), size: 6, mtime: 6 }]).unwrap(); // existing folder, other case
+        Snapshot::apply(&snap, &[Change::Delete { rel: "A.zip".into() }]).unwrap();
+        Snapshot::apply(&snap, &[Change::Delete { rel: "sub\\deep\\D.ZIP".into() }]).unwrap();
+        Snapshot::apply(&snap, &[Change::Delete { rel: "not\\there.zip".into() }]).unwrap();
         let mut r = Snapshot::open(&snap).unwrap();
         let root = r.dir("").unwrap();
         assert_eq!(names(&root), [(" lead space.txt", false, 4), ("a0.zip", false, 9), ("b.zip", false, 20), ("empty", true, 0), ("new", true, 0), ("sub", true, 0)]);
@@ -379,8 +369,8 @@ mod tests {
         drop(r);
         // No snapshot stays no snapshot: an update never invents one.
         let none = d.path().join("snapshots").join("q.snap");
-        Snapshot::apply_push(&none, "a.zip", 1, 1).unwrap();
-        Snapshot::apply_delete(&none, "a.zip").unwrap();
+        Snapshot::apply(&none, &[Change::Push { rel: "a.zip".into(), size: 1, mtime: 1 }]).unwrap();
+        Snapshot::apply(&none, &[Change::Delete { rel: "a.zip".into() }]).unwrap();
         assert!(!none.exists());
     }
 

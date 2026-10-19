@@ -159,6 +159,8 @@ mod tests {
         assert_eq!(pick_release(RELEASE.as_bytes(), "http://example.invalid/api"), None, "API over plain http");
         let plain = RELEASE.replace("https://example.invalid/setup", "http://example.invalid/setup");
         assert_eq!(pick_release(plain.as_bytes(), API), None, "installer over plain http");
+        let shouting = RELEASE.replace("https://example.invalid/sums", "HTTP://example.invalid/sums");
+        assert_eq!(pick_release(shouting.as_bytes(), API), None, "checksums over plain http, in capitals");
         let elsewhere = RELEASE.replace("https://example.invalid/sums", "https://evil.invalid/sums");
         assert_eq!(pick_release(elsewhere.as_bytes(), API), None, "checksums on another host");
         let sig_elsewhere = RELEASE.replace("https://example.invalid/sig", "https://evil.invalid/sig");
@@ -230,17 +232,6 @@ mod tests {
         assert_eq!(bad(&|d| d[4] = 1), None, "33 bytes without a sign byte");
         assert_eq!(der_signature(&[0x30, 0x04, 0x02, 0x00, 0x02, 0x00]), None, "empty integers");
         assert_eq!(der_signature(b""), None);
-    }
-
-    #[test]
-    fn assets_must_be_https_when_the_api_is() {
-        // pick_release now enforces this itself (and, stricter than before, refuses a plain-http API).
-        assert!(pick_release(RELEASE.as_bytes(), API).is_some());
-        assert_eq!(pick_release(RELEASE.as_bytes(), "http://127.0.0.1:8000/latest.json"), None, "no plain-http API, even for a local test");
-        let plain = RELEASE.replace("https://example.invalid/setup", "http://example.invalid/setup");
-        assert_eq!(pick_release(plain.as_bytes(), API), None);
-        let sums = RELEASE.replace("https://example.invalid/sums", "HTTP://example.invalid/sums");
-        assert_eq!(pick_release(sums.as_bytes(), API), None);
     }
 
     #[test]

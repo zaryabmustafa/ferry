@@ -235,22 +235,8 @@ impl Engine {
             attention.push("The settings file could not be read".to_string());
             Config::default()
         });
-        let status = Status {
-            location: Location::Elsewhere,
-            phase: Phase::Waiting,
-            paused_until: None,
-            // Nothing known to be wrong until a trip says so.
-            remote_ok: true,
-            bulk_blocked: None,
-            trusting_vpn: false,
-            cap_bytes: cfg.options.cap_bytes,
-            carried_bytes: 0,
-            rate_bps: 0,
-            eta_secs: None,
-            trips_behind: None,
-            pairs: vec![],
-            attention,
-        };
+        // Elsewhere and waiting; nothing known to be wrong until a trip says so.
+        let status = Status { remote_ok: true, cap_bytes: cfg.options.cap_bytes, attention, ..Default::default() };
         let mut e = Engine {
             hwnd,
             waker,
@@ -735,7 +721,7 @@ impl Engine {
             Request::ReloadConfig => self.reload(),
             Request::ActivityTail { n } => Response::Activity(log::tail(&self.paths.activity, n.min(5000))),
             // Never logged: neither the request nor an error that might echo it.
-            Request::SaveCredential { target, user, password } => match smb::save_credential(&target, &user, &password) {
+            Request::SaveCredential { target, user, password } => match smb::save_credential(&target, &user, &password.0) {
                 Ok(()) => Response::Ok,
                 Err(e) => Response::Err(e.to_string()),
             },
@@ -1833,21 +1819,7 @@ mod tests {
     }
 
     fn status(pairs: Vec<PairStatus>, carried: u64, trips_behind: Option<u32>) -> Status {
-        Status {
-            location: Destination,
-            phase: Phase::Idle,
-            paused_until: None,
-            remote_ok: true,
-            bulk_blocked: None,
-            trusting_vpn: false,
-            cap_bytes: 100,
-            carried_bytes: carried,
-            rate_bps: 0,
-            eta_secs: None,
-            trips_behind,
-            pairs,
-            attention: vec![],
-        }
+        Status { location: Destination, phase: Phase::Idle, remote_ok: true, cap_bytes: 100, carried_bytes: carried, trips_behind, pairs, ..Default::default() }
     }
 
     fn pair_status(up_to_date: bool, needs_confirm: bool, pending_deletes: u32) -> PairStatus {

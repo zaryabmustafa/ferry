@@ -763,21 +763,7 @@ mod tests {
     }
 
     fn status(phase: Phase, carried: u64, trips_behind: Option<u32>, pairs: Vec<PairStatus>) -> Status {
-        Status {
-            location: Location::Destination,
-            phase,
-            paused_until: None,
-            remote_ok: true,
-            bulk_blocked: None,
-            trusting_vpn: false,
-            cap_bytes: 100,
-            carried_bytes: carried,
-            rate_bps: 0,
-            eta_secs: None,
-            trips_behind,
-            pairs,
-            attention: vec![],
-        }
+        Status { location: Location::Destination, phase, remote_ok: true, cap_bytes: 100, carried_bytes: carried, trips_behind, pairs, ..Default::default() }
     }
 
     #[test]

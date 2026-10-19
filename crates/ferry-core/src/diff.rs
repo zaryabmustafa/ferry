@@ -14,7 +14,7 @@ pub struct Candidate {
     pub mtime: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PairDiff {
     pub carry: Vec<Candidate>,
     pub deletes: Vec<String>,
@@ -76,6 +76,17 @@ impl DestinationView<'_> {
     }
 }
 
+/// A destination-only entry goes into `deletes`: a file itself, a directory everything under it.
+fn delete_entry(destination: &mut DestinationView, dir: &str, e: &Entry, d: &mut PairDiff) {
+    let r = join(dir, &e.name);
+    if e.is_dir {
+        delete_tree(destination, &r, d);
+    } else {
+        d.destination_files += 1;
+        d.deletes.push(r);
+    }
+}
+
 /// Everything under a destination-only directory goes into `deletes`.
 fn delete_tree(destination: &mut DestinationView, rel: &str, d: &mut PairDiff) {
     let mut stack = vec![rel.to_string()];
@@ -105,15 +116,7 @@ pub fn diff_pair(
     now: i64,
     stable_secs: i64,
 ) -> io::Result<PairDiff> {
-    let mut d = PairDiff {
-        carry: vec![],
-        deletes: vec![],
-        cargo_gone: vec![],
-        complete: true,
-        source_files: 0,
-        destination_files: 0,
-        unstable: 0,
-    };
+    let mut d = PairDiff { complete: true, ..Default::default() };
     // Cargo rels not yet seen at the source; leftovers are gone.
     // Keyed by lowercase rel (case-insensitive shares), valued by the original rel.
     let mut unseen: HashMap<String, &str> =
@@ -160,25 +163,14 @@ pub fn diff_pair(
                     i += 1;
                 }
                 Ordering::Greater => {
-                    let h = &destination_list[j];
-                    let r = join(&dir, &h.name);
-                    if h.is_dir {
-                        delete_tree(&mut destination, &r, &mut d);
-                    } else {
-                        d.destination_files += 1;
-                        d.deletes.push(r);
-                    }
+                    delete_entry(&mut destination, &dir, &destination_list[j], &mut d);
                     j += 1;
                 }
                 Ordering::Equal => {
                     let (o, h) = (&source[i], &destination_list[j]);
-                    if h.is_dir && !o.is_dir {
-                        // The source wins: the destination dir's contents go.
-                        delete_tree(&mut destination, &join(&dir, &h.name), &mut d);
-                        handle_source(pair, &dir, o, None, cargo, now, stable_secs, &mut unseen, &mut stack, &mut d);
-                    } else if !h.is_dir && o.is_dir {
-                        d.destination_files += 1;
-                        d.deletes.push(join(&dir, &h.name));
+                    if h.is_dir != o.is_dir {
+                        // The source wins: the destination entry (a dir's contents) goes.
+                        delete_entry(&mut destination, &dir, h, &mut d);
                         handle_source(pair, &dir, o, None, cargo, now, stable_secs, &mut unseen, &mut stack, &mut d);
                     } else {
                         if !h.is_dir {

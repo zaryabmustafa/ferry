@@ -1156,7 +1156,6 @@ dependencies = [
  "tempfile",
  "toml 0.8.23",
  "windows 0.61.3",
- "xxhash-rust",
 ]
 
 [[package]]

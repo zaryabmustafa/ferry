@@ -19,7 +19,7 @@ pub enum Side {
     Destination,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Request {
     Status,
     Pause { minutes: Option<u32> },
@@ -33,7 +33,7 @@ pub enum Request {
     },
     ReloadConfig,
     ActivityTail { n: usize },
-    SaveCredential { target: String, user: String, password: String },
+    SaveCredential { target: String, user: String, password: Secret },
     TestConnection { side: Side },
     /// How bulk copies would reach this side's server from the network the laptop is on now.
     PathStatus { side: Side },
@@ -46,32 +46,14 @@ pub enum Request {
     Quit,
 }
 
-// Manual Debug so a password can never reach a log line.
-impl fmt::Debug for Request {
+/// A password on the wire. Its Debug prints `***`, so it can never reach a log line.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Secret(pub String);
+
+impl fmt::Debug for Secret {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Request::Status => f.write_str("Status"),
-            Request::Pause { minutes } => f.debug_struct("Pause").field("minutes", minutes).finish(),
-            Request::Resume => f.write_str("Resume"),
-            Request::Remember { location } => f.debug_struct("Remember").field("location", location).finish(),
-            Request::ConfirmDeletes { pair, count } => {
-                f.debug_struct("ConfirmDeletes").field("pair", pair).field("count", count).finish()
-            }
-            Request::ReloadConfig => f.write_str("ReloadConfig"),
-            Request::ActivityTail { n } => f.debug_struct("ActivityTail").field("n", n).finish(),
-            Request::SaveCredential { target, user, .. } => f
-                .debug_struct("SaveCredential")
-                .field("target", target)
-                .field("user", user)
-                .field("password", &"***")
-                .finish(),
-            Request::TestConnection { side } => f.debug_struct("TestConnection").field("side", side).finish(),
-            Request::PathStatus { side } => f.debug_struct("PathStatus").field("side", side).finish(),
-            Request::CheckUpdate => f.write_str("CheckUpdate"),
-            Request::InstallUpdate => f.write_str("InstallUpdate"),
-            Request::Restore { path } => f.debug_struct("Restore").field("path", path).finish(),
-            Request::Quit => f.write_str("Quit"),
-        }
+        f.write_str("\"***\"")
     }
 }
 
@@ -91,16 +73,17 @@ pub struct PairStatus {
     pub pending_deletes: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {
     Idle,
     Filling,
     Unloading,
     UpToDate,
+    #[default]
     Waiting,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Status {
     pub location: Location,
     pub phase: Phase,
@@ -210,7 +193,7 @@ mod tests {
             Request::ConfirmDeletes { pair: "docs".into(), count: 4 },
             Request::ReloadConfig,
             Request::ActivityTail { n: 50 },
-            Request::SaveCredential { target: "t".into(), user: "u".into(), password: "p\nw".into() },
+            Request::SaveCredential { target: "t".into(), user: "u".into(), password: Secret("p\nw".into()) },
             Request::TestConnection { side: Side::Source },
             Request::PathStatus { side: Side::Destination },
             Request::CheckUpdate,
@@ -303,28 +286,13 @@ mod tests {
 
     #[test]
     fn password_not_in_debug() {
-        let r = Request::SaveCredential { target: "t".into(), user: "u".into(), password: "hunter2".into() };
+        let r = Request::SaveCredential { target: "t".into(), user: "u".into(), password: Secret("hunter2".into()) };
         assert!(!format!("{r:?}").contains("hunter2"));
     }
 
     #[test]
     fn status_reads_old_tailscale_ok() {
-        let mut v = serde_json::to_value(Status {
-            location: Location::Destination,
-            phase: Phase::Idle,
-            paused_until: None,
-            remote_ok: true,
-            bulk_blocked: None,
-            trusting_vpn: false,
-            cap_bytes: 0,
-            carried_bytes: 0,
-            rate_bps: 0,
-            eta_secs: None,
-            trips_behind: None,
-            pairs: vec![],
-            attention: vec![],
-        })
-        .unwrap();
+        let mut v = serde_json::to_value(Status { remote_ok: true, ..Default::default() }).unwrap();
         let o = v.as_object_mut().unwrap();
         o.remove("remote_ok");
         o.remove("bulk_blocked");

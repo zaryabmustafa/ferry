@@ -25,12 +25,13 @@ pub enum AdapterKind {
     Vpn,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Location {
     #[serde(alias = "Office")]
     Source,
     #[serde(alias = "Home")]
     Destination,
+    #[default]
     Elsewhere,
 }
 
@@ -105,16 +106,6 @@ pub fn is_tailscale(a: &Adapter) -> bool {
             }
             IpAddr::V6(v6) => v6.segments()[..3] == [0xfd7a, 0x115c, 0xa1e0],
         })
-}
-
-pub fn resolve_location(
-    cfg: &Config,
-    adapters: &[Adapter],
-    best_if: &dyn Fn(IpAddr) -> Option<u32>,
-    probe_445: &dyn Fn(IpAddr) -> bool,
-    check_vpn: &dyn Fn(IpAddr, &Adapter, &Adapter) -> PathVerdict,
-) -> Location {
-    locate(cfg, adapters, best_if, probe_445, check_vpn).location
 }
 
 /// The location is recognised by a fingerprint's gateway MAC on an up local adapter plus a
@@ -309,7 +300,7 @@ mod tests {
     #[test]
     fn source_when_gateway_route_and_probe_match() {
         let ads = [adapter(4, "Intel Wi-Fi", "198.51.100.50", &[SOURCE_GW]), tailscale()];
-        let loc = resolve_location(&cfg(), &ads, &|ip| (ip == SOURCE_SRV).then_some(4), &|ip| ip == SOURCE_SRV, &no_vpn);
+        let loc = locate(&cfg(), &ads, &|ip| (ip == SOURCE_SRV).then_some(4), &|ip| ip == SOURCE_SRV, &no_vpn).location;
         assert_eq!(loc, Location::Source);
     }
 
@@ -325,35 +316,35 @@ mod tests {
     #[test]
     fn elsewhere_when_probe_fails() {
         let ads = [adapter(4, "Intel Wi-Fi", "198.51.100.50", &[SOURCE_GW]), tailscale()];
-        let loc = resolve_location(&cfg(), &ads, &|_| Some(4), &|_| false, &no_vpn);
+        let loc = locate(&cfg(), &ads, &|_| Some(4), &|_| false, &no_vpn).location;
         assert_eq!(loc, Location::Elsewhere);
     }
 
     #[test]
     fn elsewhere_when_gateway_unknown() {
         let ads = [adapter(4, "Intel Wi-Fi", "172.16.0.9", &[[1, 2, 3, 4, 5, 6]]), tailscale()];
-        let loc = resolve_location(&cfg(), &ads, &|_| Some(4), &|_| true, &no_vpn);
+        let loc = locate(&cfg(), &ads, &|_| Some(4), &|_| true, &no_vpn).location;
         assert_eq!(loc, Location::Elsewhere);
     }
 
     #[test]
     fn second_fingerprint_matches() {
         let ads = [adapter(7, "Ethernet Controller", "10.0.0.20", &[DESTINATION_CABLE_GW]), tailscale()];
-        let loc = resolve_location(&cfg(), &ads, &|ip| (ip == DESTINATION_SRV).then_some(7), &|ip| ip == DESTINATION_SRV, &no_vpn);
+        let loc = locate(&cfg(), &ads, &|ip| (ip == DESTINATION_SRV).then_some(7), &|ip| ip == DESTINATION_SRV, &no_vpn).location;
         assert_eq!(loc, Location::Destination);
     }
 
     #[test]
     fn tailscale_adapter_with_fingerprint_mac_is_ignored() {
         let ts = adapter(9, "Tailscale Tunnel", "198.51.100.50", &[SOURCE_GW]);
-        let loc = resolve_location(&cfg(), &[ts], &|_| Some(9), &|_| true, &no_vpn);
+        let loc = locate(&cfg(), &[ts], &|_| Some(9), &|_| true, &no_vpn).location;
         assert_eq!(loc, Location::Elsewhere);
     }
 
     #[test]
     fn source_wins_when_both_match() {
         let ads = [adapter(4, "Intel Wi-Fi", "198.51.100.50", &[SOURCE_GW, DESTINATION_WIFI_GW])];
-        let loc = resolve_location(&cfg(), &ads, &|_| Some(4), &|_| true, &no_vpn);
+        let loc = locate(&cfg(), &ads, &|_| Some(4), &|_| true, &no_vpn).location;
         assert_eq!(loc, Location::Source);
     }
 
@@ -374,7 +365,7 @@ mod tests {
     fn down_adapter_never_matches() {
         let mut wifi = adapter(4, "Intel Wi-Fi", "198.51.100.50", &[SOURCE_GW]);
         wifi.up = false;
-        let loc = resolve_location(&cfg(), &[wifi], &|_| Some(4), &|_| true, &no_vpn);
+        let loc = locate(&cfg(), &[wifi], &|_| Some(4), &|_| true, &no_vpn).location;
         assert_eq!(loc, Location::Elsewhere);
     }
 

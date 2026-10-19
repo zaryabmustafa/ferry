@@ -195,21 +195,7 @@ mod tests {
     fn start(name: &str) {
         let n = name.to_string();
         let h: Handler = Arc::new(|req| match req {
-            Request::Status => Response::Status(Status {
-                location: Location::Destination,
-                phase: Phase::Idle,
-                paused_until: None,
-                remote_ok: true,
-                bulk_blocked: None,
-                trusting_vpn: false,
-                cap_bytes: 1,
-                carried_bytes: 0,
-                rate_bps: 0,
-                eta_secs: None,
-                trips_behind: None,
-                pairs: vec![],
-                attention: vec![],
-            }),
+            Request::Status => Response::Status(Status { location: Location::Destination, phase: Phase::Idle, remote_ok: true, cap_bytes: 1, ..Default::default() }),
             _ => Response::Ok,
         });
         serve_on(&n, h).unwrap(); // returns once the pipe exists

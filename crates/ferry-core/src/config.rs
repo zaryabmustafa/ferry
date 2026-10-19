@@ -215,17 +215,6 @@ start_with_windows = false
     }
 
     #[test]
-    fn save_then_load_round_trips() {
-        let dir = tempfile::tempdir().unwrap();
-        let p = dir.path().join("config.toml");
-        let mut c = Config::default();
-        c.pairs.push(Pair { id: "repositories".into(), source_path: "repositories".into(),
-            destination_path: "repositories".into(), enabled: true, allow_empty: false });
-        save(&p, &c).unwrap();
-        assert_eq!(load(&p).unwrap(), c);
-    }
-
-    #[test]
     fn populated_config_round_trips() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("config.toml");
@@ -259,6 +248,7 @@ start_with_windows = false
         let s = Server { lan_host: "198.51.100.10".into(), remote_host: "office-nas".into(), ..Default::default() };
         assert_eq!(s.lan_root("repositories"), PathBuf::from(r"\\198.51.100.10\repositories"));
         assert_eq!(s.remote_root("backups/vm"), Some(PathBuf::from(r"\\office-nas\backups\vm")));
+        assert_eq!(Server::default().remote_root("repositories"), None);
     }
 
     #[test]
@@ -320,16 +310,17 @@ home_starts_empty = true
         let mut c = Config::default();
         c.source.name = "Office".into();
         c.source.lan_host = "192.0.2.10".into();
+        c.source.remote_host = "office-nas".into();
         c.destination.name = "Home".into();
         c.destination.lan_host = "198.51.100.100".into();
         c.pairs.push(Pair { id: "r".into(), source_path: "repositories".into(), destination_path: "backups/repos".into(), enabled: true, allow_empty: false });
         c.options.destination_starts_empty = true;
         save(&p, &c).unwrap();
         let text = fs::read_to_string(&p).unwrap();
-        for new in ["[source]", "[destination]", "source_path", "destination_path", "destination_starts_empty"] {
+        for new in ["[source]", "[destination]", "source_path", "destination_path", "destination_starts_empty", "remote_host"] {
             assert!(text.contains(new), "{new} missing in {text}");
         }
-        for old in ["[office]", "[home]", "office_path", "home_path", "home_starts_empty"] {
+        for old in ["[office]", "[home]", "office_path", "home_path", "home_starts_empty", "tailscale_host"] {
             assert!(!text.contains(old), "{old} still in {text}");
         }
         assert_eq!(load(&p).unwrap(), c);
@@ -358,17 +349,6 @@ home_starts_empty = true
     }
 
     #[test]
-    fn save_writes_remote_host_not_tailscale_host() {
-        let dir = tempfile::tempdir().unwrap();
-        let p = dir.path().join("config.toml");
-        let mut c = Config::default();
-        c.source.remote_host = "office-nas".into();
-        save(&p, &c).unwrap();
-        let text = fs::read_to_string(&p).unwrap();
-        assert!(text.contains("remote_host") && !text.contains("tailscale_host"));
-    }
-
-    #[test]
     fn overlapping_destinations_are_found() {
         let pair = |id: &str, d: &str| Pair { id: id.into(), destination_path: d.into(), ..Default::default() };
         let pairs = vec![pair("a", "backups"), pair("b", "Media/Photos")];
@@ -378,13 +358,5 @@ home_starts_empty = true
         assert_eq!(overlapping_destination(&pairs, "backups2", None), None); // a prefix is not a parent
         assert_eq!(overlapping_destination(&pairs, "media/photos-old", None), None);
         assert_eq!(overlapping_destination(&pairs, "backups", Some("a")), None); // editing itself
-    }
-
-    #[test]
-    fn remote_root_is_none_when_empty() {
-        let mut s = Server::default();
-        assert_eq!(s.remote_root("repositories"), None);
-        s.remote_host = "office-nas".into();
-        assert_eq!(s.remote_root("repositories"), Some(PathBuf::from(r"\\office-nas\repositories")));
     }
 }

@@ -4,7 +4,7 @@ use ferry_core::backup;
 use ferry_core::cargo::CargoManifest;
 use ferry_core::config::{self, display_name, Config, Fingerprint, Pair, Server, GB};
 use ferry_core::deletes::DeleteQueue;
-use ferry_core::ipc::Side;
+use ferry_core::ipc::{Secret, Side};
 use slint::{Model, SharedString};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -1004,7 +1004,7 @@ fn save_server(ui: &Setup, side: Side, then: Then) {
     let has_password = !password.is_empty();
     let mut reqs = vec![];
     if has_password {
-        reqs.push(Request::SaveCredential { target: target(side).into(), user: user.trim().into(), password: password.into() });
+        reqs.push(Request::SaveCredential { target: target(side).into(), user: user.trim().into(), password: Secret(password.into()) });
         match side {
             Side::Source => g.set_source_pass("".into()),
             Side::Destination => g.set_destination_pass("".into()),

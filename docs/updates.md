@@ -40,4 +40,4 @@ Turn off "Install updates automatically" if this is more trust than you want to 
 
 While the repository is private, the releases API answers "not found" to Ferry, so Ferry sees no updates. That is quiet, and updates start working once the repository is public.
 
-A fork points Ferry at its own releases by building with `FERRY_RELEASES_URL` set to its `https://api.github.com/repos/<owner>/<repo>/releases/latest` address (a Gitea server's `.../api/v1/repos/<owner>/<repo>/releases/latest` has the same fields), and at its own signing key with `FERRY_UPDATE_KEY` (or by changing `UPDATE_KEY`). A build without a key installs no updates.
+A fork points Ferry at its own releases by building with `FERRY_RELEASES_URL` set to its `https://api.github.com/repos/<owner>/<repo>/releases/latest` address, and at its own signing key with `FERRY_UPDATE_KEY` (or by changing `UPDATE_KEY`). A build without a key installs no updates.

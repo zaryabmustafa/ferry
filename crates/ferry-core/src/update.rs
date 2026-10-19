@@ -1,5 +1,5 @@
 //! Auto-update decisions that need no network: release versions, SHA256SUMS lines, the assets
-//! Ferry needs from a GitHub (or Gitea) release, and the encodings of its update signing key and signature.
+//! Ferry needs from a GitHub release, and the encodings of its update signing key and signature.
 
 /// `vX.Y.Z` or `X.Y.Z`, three numeric parts. A pre-release suffix (`-rc1`) is no version here:
 /// Ferry only updates to plain releases.
@@ -83,7 +83,7 @@ fn same_place(api_host: &str, file_host: &str) -> bool {
     file_host.eq_ignore_ascii_case(api_host) || (api_host.eq_ignore_ascii_case("api.github.com") && file_host.eq_ignore_ascii_case("github.com"))
 }
 
-/// Reads a GitHub or Gitea `releases/latest` answer fetched from `api_url`. Anything unexpected
+/// Reads a GitHub `releases/latest` answer fetched from `api_url`. Anything unexpected
 /// means no update, and so does an installer or checksum address that isn't https on the API's
 /// own host (see `same_place`): both files come from one place, so a plain-http or off-site link
 /// would let anyone on the path, or anyone who can edit the release text, swap them together.

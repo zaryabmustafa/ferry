@@ -124,6 +124,7 @@ Passwords are kept in Windows Credential Manager, not in the config file.
 - [Building and contributing](docs/development.md): build from source, crates, tests.
 - [Verification](docs/verification.md): measurements, checks and drills.
 - [Roadmap](docs/roadmap.md): what's planned next, including macOS and Linux.
+- [Security](SECURITY.md): how to report a vulnerability privately.
 
 ## License
 

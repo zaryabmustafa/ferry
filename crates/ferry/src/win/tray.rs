@@ -10,9 +10,7 @@ use windows::Win32::System::Registry::{
     RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW, HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_DWORD,
 };
 use windows::Win32::System::SystemServices::GUID_POWER_SAVING_STATUS;
-use windows::Win32::UI::HiDpi::{
-    GetDpiForWindow, GetSystemMetricsForDpi, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
-};
+use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
     NOTIFY_ICON_MESSAGE,
@@ -90,8 +88,6 @@ static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
 /// Hidden top-level window (not message-only: those miss the TaskbarCreated broadcast) plus the icon.
 pub fn create() -> io::Result<HWND> {
     unsafe {
-        // Crisp icons at any scale: SM_CXSMICON is only real for a DPI-aware window.
-        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let hinst = GetModuleHandleW(None)?;
         let wc = WNDCLASSW {
             lpfnWndProc: Some(wndproc),

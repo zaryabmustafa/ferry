@@ -402,7 +402,7 @@ struct State {
     /// First run: the folder added in step 4, so going Back edits it instead of adding another.
     first_pair: Option<String>,
     /// Pairs holding deletes for confirmation, with their count, from the last Status.
-    held: Vec<(String, u32)>,
+    held: Vec<(String, u32, u64)>,
     /// Per-pair result of "Delete N files at the destination".
     held_notes: HashMap<String, Note>,
     /// A learned network's trust switch while it isn't simply on or off: (state, hint, adapter
@@ -683,11 +683,11 @@ fn show_status(ui: &Setup, s: &Status) {
     g.set_rows(model(rows(s, &paths, &n)));
     let trip_running = matches!(s.phase, Phase::Filling | Phase::Unloading);
     st(|st| {
-        st.held = s.pairs.iter().filter(|p| p.needs_confirm).map(|p| (p.id.clone(), p.pending_deletes)).collect();
+        st.held = s.pairs.iter().filter(|p| p.needs_confirm).map(|p| (p.id.clone(), p.pending_deletes, p.deletes_list)).collect();
         let held = std::mem::take(&mut st.held_notes);
         st.held_notes = held
             .into_iter()
-            .filter(|(id, _)| st.held.iter().any(|(h, _)| h == id))
+            .filter(|(id, _)| st.held.iter().any(|(h, ..)| h == id))
             .map(|(id, n)| (id, settle_held_note(n, trip_running)))
             .collect();
     });
@@ -714,7 +714,7 @@ fn show_held(ui: &Setup) {
         let names = Names::of(&s.cfg);
         s.held
             .iter()
-            .map(|(id, n)| {
+            .map(|(id, n, _)| {
                 let note = s.held_notes.get(id).cloned().unwrap_or_default();
                 // Hidden while a confirmation is out or done, so it can't be sent twice.
                 let button = if note.kind == DONE || note.kind == WORKING { String::new() } else { delete_label(*n, &names) };
@@ -726,11 +726,11 @@ fn show_held(ui: &Setup) {
 }
 
 fn confirm(ui: &Setup, id: String) {
-    // The count on the button: the engine refuses if the queue no longer matches it.
-    let count = st(|s| s.held.iter().find(|(h, _)| *h == id).map_or(0, |(_, n)| *n));
+    // The count and fingerprint shown: the engine refuses if the queue no longer matches them.
+    let (count, list) = st(|s| s.held.iter().find(|(h, ..)| *h == id).map_or((0, 0), |(_, n, l)| (*n, *l)));
     st(|s| s.held_notes.insert(id.clone(), note("Confirming...", WORKING)));
     show_held(ui);
-    send(ui, vec![Request::ConfirmDeletes { pair: id.clone(), count }], move |ui, r| {
+    send(ui, vec![Request::ConfirmDeletes { pair: id.clone(), count, list }], move |ui, r| {
         st(|s| {
             let n = confirm_outcome(r.map_err(|(_, e)| e), &Names::of(&s.cfg));
             s.held_notes.insert(id, n)

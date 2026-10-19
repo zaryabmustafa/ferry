@@ -748,6 +748,7 @@ mod tests {
             up_to_date: done,
             needs_confirm: confirm,
             pending_deletes: 0,
+            deletes_list: 0,
         }
     }
 

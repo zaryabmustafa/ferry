@@ -10,7 +10,10 @@ use crate::win::{http, net, power, smb, toast};
 use ferry_core::backup;
 use ferry_core::cargo::CargoManifest;
 use ferry_core::config::{self, display_name, Config, Fingerprint, Server};
-use ferry_core::deletes::DeleteQueue;
+use ferry_core::deletes::{list_id, DeleteQueue};
+
+/// The answer to a confirmation whose list isn't the one held now.
+const LIST_CHANGED: &str = "The list of deletes changed; review it again.";
 use ferry_core::entry::list_dir;
 use ferry_core::ipc::{PairStatus, Phase, Request, Response, Side, Status};
 use ferry_core::location::{locate, reason_text, Adapter, BulkPath, Located, Location, PathVerdict};
@@ -619,7 +622,7 @@ impl Engine {
             self.trigger();
         }
         for (pair, seen, count, reply) in std::mem::take(&mut self.confirms) {
-            let r = self.confirm(&pair, Some(&seen), count);
+            let r = self.confirm(&pair, Some(&seen), count, 0);
             if let Response::Err(e) = &r {
                 self.log.line(&format!("delete confirmation for {pair} dropped: {e}"));
             }
@@ -706,16 +709,17 @@ impl Engine {
                 self.resume();
                 Response::Ok
             }
-            Request::ConfirmDeletes { pair, count } if self.trip.is_some() => {
+            Request::ConfirmDeletes { pair, count, list } if self.trip.is_some() => {
                 // The trip owns deletes.json until it ends: approve only the list seen now,
                 // and answer once it is applied or dropped.
                 let q = DeleteQueue::load(&self.paths.deletes).unwrap_or_default();
                 match q.pairs.get(&pair).filter(|p| !p.paths.is_empty()) {
+                    Some(p) if list != 0 && list != list_id(&p.paths) => Response::Err(LIST_CHANGED.into()),
                     Some(p) => return self.confirms.push((pair, p.paths.clone(), count, reply)),
                     None => Response::Err(format!("No deletes are held for {pair}.")),
                 }
             }
-            Request::ConfirmDeletes { pair, count } => self.confirm(&pair, None, count),
+            Request::ConfirmDeletes { pair, count, list } => self.confirm(&pair, None, count, list),
             Request::ReloadConfig => self.reload(),
             Request::ActivityTail { n } => Response::Activity(log::tail(&self.paths.activity, n.min(5000))),
             // Never logged: neither the request nor an error that might echo it.
@@ -742,12 +746,12 @@ impl Engine {
     }
 
     /// Mark a pair's held deletes as confirmed; they apply at its next caught-up point.
-    fn confirm(&mut self, pair: &str, seen: Option<&[String]>, count: u32) -> Response {
+    fn confirm(&mut self, pair: &str, seen: Option<&[String]>, count: u32, list: u64) -> Response {
         let mut q = match DeleteQueue::load(&self.paths.deletes) {
             Ok(q) => q,
             Err(e) => return Response::Err(format!("delete queue: {e}")),
         };
-        if let Err(e) = approve(&mut q, pair, seen, count) {
+        if let Err(e) = approve(&mut q, pair, seen, count, list) {
             return Response::Err(e);
         }
         if let Err(e) = q.save(&self.paths.deletes) {
@@ -1063,6 +1067,7 @@ impl Engine {
                     up_to_date,
                     needs_confirm: d.is_some_and(|d| d.needs_confirm && !d.confirmed),
                     pending_deletes: d.map_or(0, |d| u32::try_from(d.paths.len()).unwrap_or(u32::MAX)),
+                    deletes_list: d.map_or(0, |d| list_id(&d.paths)),
                 }
             })
             .collect();
@@ -1324,12 +1329,12 @@ fn answers_445(host: &str) -> bool {
 /// Approve a pair's held deletes, only as the user saw them: `count` is how many the UI showed
 /// (0, from an older UI, is not checked), and `seen` (a confirmation that waited for a trip)
 /// the paths queued when it arrived.
-pub fn approve(q: &mut DeleteQueue, pair: &str, seen: Option<&[String]>, count: u32) -> Result<(), String> {
+pub fn approve(q: &mut DeleteQueue, pair: &str, seen: Option<&[String]>, count: u32, list: u64) -> Result<(), String> {
     match q.pairs.get_mut(pair) {
         Some(p) if !p.paths.is_empty() => {
-            let shown = count == 0 || p.paths.len() == count as usize;
+            let shown = (count == 0 || p.paths.len() == count as usize) && (list == 0 || list == list_id(&p.paths));
             if !shown || seen.is_some_and(|s| s != p.paths.as_slice()) {
-                return Err("The list of deletes changed; review it again.".into());
+                return Err(LIST_CHANGED.into());
             }
             p.confirmed = true;
             p.needs_confirm = false;
@@ -1781,17 +1786,17 @@ mod tests {
     fn deferred_confirm_with_changed_paths_is_dropped() {
         let mut q = queue(&["a.zip", "b.zip"]);
         let seen = vec!["a.zip".to_string()];
-        assert!(approve(&mut q, "p", Some(&seen), 0).unwrap_err().contains("changed"));
+        assert!(approve(&mut q, "p", Some(&seen), 0, 0).unwrap_err().contains("changed"));
         assert!(!q.pairs["p"].confirmed);
     }
 
     #[test]
     fn deferred_confirm_with_same_paths_applies() {
         let mut q = queue(&["a.zip"]);
-        approve(&mut q, "p", Some(&["a.zip".to_string()]), 0).unwrap();
+        approve(&mut q, "p", Some(&["a.zip".to_string()]), 0, 0).unwrap();
         assert!(q.pairs["p"].confirmed);
-        assert!(approve(&mut queue(&[]), "p", None, 0).is_err());
-        assert!(approve(&mut q, "other", None, 0).is_err());
+        assert!(approve(&mut queue(&[]), "p", None, 0, 0).is_err());
+        assert!(approve(&mut q, "other", None, 0, 0).is_err());
     }
 
     #[test]
@@ -1799,11 +1804,24 @@ mod tests {
         let mut q = queue(&["a.zip", "b.zip"]);
         q.pairs.get_mut("p").unwrap().needs_confirm = true;
         // The UI showed 3 files but 2 are queued now: the user didn't see this list.
-        assert!(approve(&mut q, "p", None, 3).unwrap_err().contains("changed"));
+        assert!(approve(&mut q, "p", None, 3, 0).unwrap_err().contains("changed"));
         assert!(q.pairs["p"].needs_confirm && !q.pairs["p"].confirmed);
-        approve(&mut q, "p", None, 2).unwrap();
+        approve(&mut q, "p", None, 2, 0).unwrap();
         assert!(q.pairs["p"].confirmed);
         assert!(!q.pairs["p"].needs_confirm, "the Delete button goes away once confirmed");
+    }
+
+    #[test]
+    fn confirm_checks_the_list_shown_not_just_its_size() {
+        let shown = list_id(&["a.zip".to_string(), "b.zip".to_string()]);
+        // A fill in between swapped one file for another: same count, different list.
+        let mut q = queue(&["a.zip", "c.zip"]);
+        assert!(approve(&mut q, "p", None, 2, shown).unwrap_err().contains("changed"));
+        assert!(!q.pairs["p"].confirmed);
+        let mut q = queue(&["a.zip", "b.zip"]);
+        approve(&mut q, "p", None, 2, shown).unwrap();
+        assert!(q.pairs["p"].confirmed);
+        assert_ne!(list_id(&[]), 0, "0 means no fingerprint was sent");
     }
 
     fn status(pairs: Vec<PairStatus>, carried: u64, trips_behind: Option<u32>) -> Status {
@@ -1820,6 +1838,7 @@ mod tests {
             up_to_date,
             needs_confirm,
             pending_deletes,
+            deletes_list: 0,
         }
     }
 

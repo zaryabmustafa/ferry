@@ -25,11 +25,14 @@ pub enum Request {
     Pause { minutes: Option<u32> },
     Resume,
     Remember { location: Side },
-    /// `count`: how many deletes the user was shown; 0 (an older UI) is not checked.
+    /// `count`: how many deletes the user was shown; `list`: their `PairStatus::deletes_list`.
+    /// 0 (an older UI) is not checked.
     ConfirmDeletes {
         pair: String,
         #[serde(default)]
         count: u32,
+        #[serde(default)]
+        list: u64,
     },
     ReloadConfig,
     ActivityTail { n: usize },
@@ -71,6 +74,10 @@ pub struct PairStatus {
     /// Destination deletes held in the queue for this pair (what "Delete N files at {Dest}" confirms).
     #[serde(default)]
     pub pending_deletes: u32,
+    /// Fingerprint of those deletes (`deletes::list_id`), sent back with a confirmation so only
+    /// the list the user saw is approved.
+    #[serde(default)]
+    pub deletes_list: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,7 +197,7 @@ mod tests {
             Request::Pause { minutes: None },
             Request::Resume,
             Request::Remember { location: Side::Destination },
-            Request::ConfirmDeletes { pair: "docs".into(), count: 4 },
+            Request::ConfirmDeletes { pair: "docs".into(), count: 4, list: 9 },
             Request::ReloadConfig,
             Request::ActivityTail { n: 50 },
             Request::SaveCredential { target: "t".into(), user: "u".into(), password: Secret("p\nw".into()) },
@@ -227,6 +234,7 @@ mod tests {
                 up_to_date: false,
                 needs_confirm: true,
                 pending_deletes: 4,
+                deletes_list: 0,
             }],
             attention: vec!["x".into()],
         };
@@ -281,7 +289,7 @@ mod tests {
     #[test]
     fn confirm_without_count_still_decodes() {
         let r: Request = decode(br#"{"ConfirmDeletes":{"pair":"docs"}}"#).unwrap();
-        assert_eq!(r, Request::ConfirmDeletes { pair: "docs".into(), count: 0 });
+        assert_eq!(r, Request::ConfirmDeletes { pair: "docs".into(), count: 0, list: 0 });
     }
 
     #[test]

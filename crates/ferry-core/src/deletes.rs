@@ -31,6 +31,12 @@ impl DeleteQueue {
     }
 }
 
+/// A fingerprint of a delete list (FNV-1a over the paths, in order), so a confirmation can name
+/// the exact list the user saw. Never 0, which means "not sent".
+pub fn list_id(paths: &[String]) -> u64 {
+    paths.iter().flat_map(|p| p.bytes().chain([0])).fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)).max(1)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeleteDecision {
     Apply,

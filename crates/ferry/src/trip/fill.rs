@@ -194,6 +194,14 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
         report.outstanding_bytes += left.iter().map(|c| c.size).sum::<u64>();
         if let Some(q) = queue.pairs.get_mut(*pair) {
             q.outstanding = left.len() as u64 + unstable;
+            // Say what holds them: a file too big for the cap, or locked, would otherwise hold
+            // them forever without a word.
+            if !q.paths.is_empty() && q.outstanding > 0 {
+                let first = left.first().map_or_else(|| "files still being written".to_string(), |c| c.rel.clone());
+                let (n, dest) = (q.paths.len(), ctx.destination_name);
+                let msg = format!("{n} deletes at {dest} wait until {} more files are on the laptop, starting with {first}", q.outstanding);
+                emit(Event::Info { pair: pair.to_string(), msg });
+            }
         }
     }
     queue.save(ctx.deletes_path)?;
@@ -418,6 +426,18 @@ mod tests {
             let r = self.fill_with(&AtomicBool::new(false), &mut |e| events.push(e));
             (r, events)
         }
+    }
+
+    #[test]
+    fn deletes_held_by_a_file_that_cant_be_carried_say_so() {
+        let mut env = Env::new();
+        env.opts.cap_bytes = 4 * KB as u64;
+        env.source("huge.bin", 8 * KB);
+        env.put(env.destination.path(), "old.txt", KB, b'h');
+        let mut ev = vec![];
+        env.fill_with(&AtomicBool::new(false), &mut |e| ev.push(e));
+        let want = "1 deletes at Lake house wait until 1 more files are on the laptop, starting with huge.bin";
+        assert!(ev.iter().any(|e| matches!(e, Event::Info { msg, .. } if msg == want)), "{ev:?}");
     }
 
     #[test]

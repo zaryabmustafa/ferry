@@ -1,8 +1,7 @@
 use ferry_core::entry::long_path;
 use std::marker::PhantomData;
-use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
-use windows::core::PCWSTR;
+use windows::core::HSTRING;
 use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
 use windows::Win32::System::Power::{
     GetSystemPowerStatus, SetThreadExecutionState, ES_CONTINUOUS, ES_SYSTEM_REQUIRED, SYSTEM_POWER_STATUS,
@@ -53,9 +52,8 @@ pub fn battery_saver_on() -> bool {
 
 /// Bytes free to the caller on `path`'s volume; 0 on failure (so the budget carries nothing).
 pub fn disk_free(path: &Path) -> u64 {
-    let w: Vec<u16> = long_path(path).as_os_str().encode_wide().chain([0]).collect();
     let mut free = 0u64;
-    match unsafe { GetDiskFreeSpaceExW(PCWSTR(w.as_ptr()), Some(&mut free), None, None) } {
+    match unsafe { GetDiskFreeSpaceExW(&HSTRING::from(long_path(path).as_path()), Some(&mut free), None, None) } {
         Ok(()) => free,
         Err(_) => 0,
     }

@@ -248,7 +248,7 @@ fn copy_one(
     }
     let copied = copied?;
     finalize(part, dst, c.mtime)?;
-    Ok(Some(copied.hash))
+    Ok(Some(copied))
 }
 
 #[cfg(test)]

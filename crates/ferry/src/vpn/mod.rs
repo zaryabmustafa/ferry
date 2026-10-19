@@ -50,37 +50,12 @@ mod tests {
         }
     }
 
-    const STATUS: &str = include_str!("fixtures/tailscale_status.json");
-    const OFFICE_DIRECT: &str = "pong from office-nas (100.64.0.2) via 192.0.2.10:41641 in 2ms\n";
-
-    fn local() -> Adapter {
-        Adapter { if_type: 6, hardware: true, ..adapter("Ethernet", "Ethernet Controller", "192.0.2.150") }
-    }
-
-    /// Tailscale's CLI as it looks at the office: office-nas direct on the LAN.
-    fn office_cli(args: &[&str], _: Instant) -> Option<CliOut> {
-        let text = if args[0] == "status" { STATUS } else { OFFICE_DIRECT };
-        Some(CliOut { text: text.into(), timed_out: false })
-    }
-
+    // Tailscale's own verdicts are tested in tailscale.rs; this only checks the dispatch.
     #[test]
     fn non_tailscale_adapter_is_unknown() {
         let wg = adapter("WireGuard", "WireGuard Tunnel", "10.8.0.2");
+        let local = Adapter { if_type: 6, hardware: true, ..adapter("Ethernet", "Ethernet Controller", "192.0.2.150") };
         let never = |_: &[&str], _: Instant| -> Option<CliOut> { panic!("the CLI must not run for another VPN") };
-        assert_eq!(check_with("192.0.2.10".parse().unwrap(), &wg, &local(), &never), PathVerdict::Unknown);
-    }
-
-    #[test]
-    fn tailscale_adapter_gets_the_tailscale_verdict() {
-        let ts = adapter("Tailscale", "Tailscale Tunnel", "100.64.0.1");
-        assert_eq!(check_with("192.0.2.10".parse().unwrap(), &ts, &local(), &office_cli), PathVerdict::Direct);
-        assert_eq!(check_with("192.0.2.10".parse().unwrap(), &ts, &local(), &|_, _| None), PathVerdict::Unknown, "no CLI");
-    }
-
-    #[test]
-    fn another_vpn_in_the_cgnat_range_is_unknown_even_when_tailscale_is_direct() {
-        // NetBird (or WARP) also uses 100.64.0.0/10; it isn't the adapter Tailscale reports as itself.
-        let netbird = adapter("wt0", "WireGuard Tunnel", "100.80.0.2");
-        assert_eq!(check_with("192.0.2.10".parse().unwrap(), &netbird, &local(), &office_cli), PathVerdict::Unknown);
+        assert_eq!(check_with("192.0.2.10".parse().unwrap(), &wg, &local, &never), PathVerdict::Unknown);
     }
 }

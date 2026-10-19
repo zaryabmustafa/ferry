@@ -1,9 +1,8 @@
 //! Toasts for an unpackaged app: a Start Menu shortcut carrying AppUserModelID "Ferry", then
 //! WinRT `ToastNotificationManager`. WinRT is only touched when a toast is shown.
 use std::io;
-use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
-use windows::core::{Interface, HSTRING, PCWSTR, PWSTR};
+use std::path::PathBuf;
+use windows::core::{Interface, HSTRING, PWSTR};
 use windows::Data::Xml::Dom::IXmlNode;
 use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PROPVARIANT};
@@ -14,10 +13,6 @@ use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
 use windows::UI::Notifications::{ToastNotification, ToastNotificationManager, ToastTemplateType};
 
 const AUMID: &str = "Ferry";
-
-fn wide(p: &Path) -> Vec<u16> {
-    p.as_os_str().encode_wide().chain([0]).collect()
-}
 
 pub fn shortcut_path() -> io::Result<PathBuf> {
     let appdata = std::env::var_os("APPDATA").ok_or_else(|| io::Error::other("APPDATA not set"))?;
@@ -30,13 +25,13 @@ pub fn ensure_shortcut() -> io::Result<()> {
     if lnk.exists() {
         return Ok(());
     }
-    let exe = wide(&std::env::current_exe()?);
+    let exe = HSTRING::from(std::env::current_exe()?.as_path());
     let id: Vec<u16> = AUMID.encode_utf16().chain([0]).collect();
     unsafe {
         // S_FALSE (already initialized) or a different mode both leave COM usable here.
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
-        link.SetPath(PCWSTR(exe.as_ptr()))?;
+        link.SetPath(&exe)?;
         // The value must be COM-allocated: the shell may coerce it in place (freeing ours), so
         // PropVariantClear releases whatever the variant holds afterwards.
         let buf = CoTaskMemAlloc(id.len() * 2) as *mut u16;
@@ -54,7 +49,7 @@ pub fn ensure_shortcut() -> io::Result<()> {
         });
         let _ = PropVariantClear(&mut pv);
         set?;
-        link.cast::<IPersistFile>()?.Save(PCWSTR(wide(&lnk).as_ptr()), true)?;
+        link.cast::<IPersistFile>()?.Save(&HSTRING::from(lnk.as_path()), true)?;
     }
     Ok(())
 }

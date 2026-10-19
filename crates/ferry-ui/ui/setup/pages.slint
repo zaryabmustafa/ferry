@@ -5,7 +5,7 @@ import { Icon, Btn } from "../flyout.slint";
 import { ScrollView } from "std-widgets.slint";
 import { S, Note, NetRow } from "state.slint";
 import {
-    Ring, PageTitle, Caption, Field, Toggle, SettingRow, Card, NoteView, SectionLabel, Chip, ItemCard, Manage, MenuItem, Tab,
+    Ring, PageTitle, Caption, Field, Toggle, Card, NoteView, SectionLabel, Chip, Manage, MenuItem, Tab,
     TabItem, CardRow
 } from "controls.slint";
 
@@ -117,7 +117,7 @@ export component StatusPage inherits Page {
         : [{ text: "Start Ferry", icon: "", primary: true }];
     action(i) => { if S.running { S.toggle-pause(); } else { S.start-engine(); } }
 
-    ItemCard {
+    Card {
         HorizontalLayout {
             padding: 16px;
             padding-top: 18px;
@@ -146,7 +146,7 @@ export component StatusPage inherits Page {
     }
 
     if S.show-meter: SectionLabel { text: "LAPTOP SPACE"; }
-    if S.show-meter: ItemCard {
+    if S.show-meter: Card {
         VerticalLayout {
             padding: 16px;
             spacing: 10px;
@@ -206,7 +206,7 @@ export component StatusPage inherits Page {
         text: "FOLDERS, IN PRIORITY ORDER";
         Btn { ghost: true; text: "Manage folders"; clicked => { S.go(1); } }
     }
-    for r[i] in S.rows: ItemCard {
+    for r[i] in S.rows: Card {
         accessible-role: list-item;
         accessible-label: r.label;
         HorizontalLayout {
@@ -258,7 +258,7 @@ export component StatusPage inherits Page {
         }
     }
 
-    if S.running && S.pairs.length == 0: ItemCard {
+    if S.running && S.pairs.length == 0: Card {
         VerticalLayout {
             padding: 16px;
             spacing: 12px;
@@ -381,7 +381,7 @@ export component FoldersPage inherits Page {
         if S.folders-note.text != "": NoteView { note: S.folders-note; }
         if S.pairs.length > 0: SectionLabel { text: "IN PRIORITY ORDER"; }
         for p[i] in S.pairs: VerticalLayout {
-            if S.folder-filter == 0 || (S.folder-filter == 1 && p.enabled) || (S.folder-filter == 2 && !p.enabled): ItemCard {
+            if S.folder-filter == 0 || (S.folder-filter == 1 && p.enabled) || (S.folder-filter == 2 && !p.enabled): Card {
                 // After Move up/down, focus follows the folder to its new row.
                 property <int> focus-ask: S.moved-to == i ? S.moved-seq : 0;
                 changed focus-ask => {
@@ -446,7 +446,7 @@ export component FoldersPage inherits Page {
                 }
             }
         }
-        if S.pairs.length == 0: ItemCard {
+        if S.pairs.length == 0: Card {
             VerticalLayout {
                 padding: 16px;
                 spacing: 8px;
@@ -620,7 +620,7 @@ export component ServerCard inherits VerticalLayout {
     if root.full && root.nets.length == 0: Caption {
         text: "None yet. While the laptop is on this place's network, choose Remember this network.";
     }
-    for n[i] in root.nets: ItemCard {
+    for n[i] in root.nets: Card {
         HorizontalLayout {
             padding-top: 14px;
             padding-bottom: 14px;
@@ -769,7 +769,7 @@ export component ActivityPage inherits Page {
         if S.held.length > 0: SectionLabel { text: "HELD DELETES"; }
         for h[i] in S.held: VerticalLayout {
             spacing: 6px;
-            ItemCard {
+            Card {
                 HorizontalLayout {
                     padding-top: 14px;
                     padding-bottom: 14px;

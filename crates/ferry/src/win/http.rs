@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::Path;
 use windows::core::{HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Networking::WinHttp::{
@@ -12,9 +12,8 @@ use windows::Win32::Networking::WinHttp::{
     WINHTTP_FLAG_SECURE, WINHTTP_OPEN_REQUEST_FLAGS, WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_QUERY_STATUS_CODE,
 };
 use windows::Win32::Security::Cryptography::{
-    BCryptCreateHash, BCryptDestroyHash, BCryptDestroyKey, BCryptFinishHash, BCryptHash, BCryptHashData, BCryptImportKeyPair,
-    BCryptVerifySignature, BCRYPT_ECCPUBLIC_BLOB, BCRYPT_ECDSA_P256_ALG_HANDLE, BCRYPT_ECDSA_PUBLIC_P256_MAGIC, BCRYPT_FLAGS,
-    BCRYPT_HASH_HANDLE, BCRYPT_KEY_HANDLE, BCRYPT_SHA256_ALG_HANDLE,
+    BCryptDestroyKey, BCryptHash, BCryptImportKeyPair, BCryptVerifySignature, BCRYPT_ECCPUBLIC_BLOB, BCRYPT_ECDSA_P256_ALG_HANDLE,
+    BCRYPT_ECDSA_PUBLIC_P256_MAGIC, BCRYPT_FLAGS, BCRYPT_KEY_HANDLE, BCRYPT_SHA256_ALG_HANDLE,
 };
 
 #[derive(Debug)]
@@ -156,39 +155,12 @@ pub fn download(url: &str, dest: &Path, cap: u64) -> Result<(), HttpError> {
     }
 }
 
-/// A BCrypt hash object, destroyed on drop.
-struct Hash(BCRYPT_HASH_HANDLE);
-
-impl Drop for Hash {
-    fn drop(&mut self) {
-        let _ = unsafe { BCryptDestroyHash(self.0) };
-    }
-}
-
-/// SHA-256 of a file, lowercase hex.
+/// SHA-256 of a file, lowercase hex. Read whole: updates are capped at 64 MiB.
 pub fn sha256_file(path: &Path) -> io::Result<String> {
-    let err = |what: &str, s: windows::Win32::Foundation::NTSTATUS| io::Error::other(format!("{what}: 0x{:08x}", s.0));
-    let mut h = Hash(BCRYPT_HASH_HANDLE::default());
-    let s = unsafe { BCryptCreateHash(BCRYPT_SHA256_ALG_HANDLE, &mut h.0, None, None, 0) };
-    if s.is_err() {
-        return Err(err("BCryptCreateHash", s));
-    }
-    let mut f = File::open(path)?;
-    let mut buf = vec![0u8; 64 * 1024];
-    loop {
-        let n = f.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        let s = unsafe { BCryptHashData(h.0, &buf[..n], 0) };
-        if s.is_err() {
-            return Err(err("BCryptHashData", s));
-        }
-    }
     let mut out = [0u8; 32];
-    let s = unsafe { BCryptFinishHash(h.0, &mut out, 0) };
+    let s = unsafe { BCryptHash(BCRYPT_SHA256_ALG_HANDLE, None, &fs::read(path)?, &mut out) };
     if s.is_err() {
-        return Err(err("BCryptFinishHash", s));
+        return Err(io::Error::other(format!("BCryptHash: 0x{:08x}", s.0)));
     }
     Ok(out.iter().map(|b| format!("{b:02x}")).collect())
 }

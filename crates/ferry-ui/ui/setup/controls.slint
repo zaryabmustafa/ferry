@@ -22,13 +22,6 @@ export component PageTitle inherits Text {
     accessible-label: self.text;
 }
 
-export component GroupLabel inherits Text {
-    font-weight: 600;
-    color: Theme.ink;
-    accessible-role: text;
-    accessible-label: self.text;
-}
-
 export component Caption inherits Text {
     font-size: 12px;
     color: Theme.muted;
@@ -165,34 +158,6 @@ export component Toggle inherits HorizontalLayout {
             }
             if fs.has-focus && Focus.keyboard: Ring { width: parent.width + 6px; height: parent.height + 6px; border-radius: 13px; }
         }
-    }
-}
-
-// A Settings-app row: title and description on the left, controls (children) on the right.
-export component SettingRow inherits Rectangle {
-    in property <string> icon;
-    in property <string> title;
-    in property <string> body;
-
-    background: Theme.layer;
-    border-radius: 6px;
-    border-width: 1px;
-    border-color: Theme.stroke;
-    HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 16px;
-        padding-top: 12px;
-        padding-bottom: 12px;
-        spacing: 16px;
-        if root.icon != "": Icon { text: root.icon; color: Theme.ink; }
-        VerticalLayout {
-            horizontal-stretch: 1;
-            alignment: center;
-            spacing: 2px;
-            Text { text: root.title; color: Theme.ink; wrap: word-wrap; }
-            if root.body != "": Caption { text: root.body; }
-        }
-        @children
     }
 }
 
@@ -338,14 +303,6 @@ export component Chip inherits Rectangle {
             accessible-role: none;
         }
     }
-}
-
-// One folder, network or held delete.
-export component ItemCard inherits Rectangle {
-    background: Theme.layer;
-    border-radius: 8px;
-    border-width: 1px;
-    border-color: Theme.stroke;
 }
 
 export struct MenuItem { text: string, icon: string, enabled: bool, danger: bool, separator-before: bool }

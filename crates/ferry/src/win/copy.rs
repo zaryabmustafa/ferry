@@ -1,25 +1,18 @@
 use ferry_core::entry::{long_path, TICKS_PER_SEC};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::windows::ffi::OsStrExt;
 use std::os::windows::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::sync_channel;
 use std::thread;
 use std::time::{Duration, UNIX_EPOCH};
-use windows::core::PCWSTR;
+use windows::core::HSTRING;
 use windows::Win32::Storage::FileSystem::{
     MoveFileExW, FILE_FLAG_NO_BUFFERING, FILE_FLAG_SEQUENTIAL_SCAN, FILE_FLAG_WRITE_THROUGH,
     FILE_SHARE_READ, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
 };
 use xxhash_rust::xxh3::Xxh3;
-
-pub struct Copied {
-    #[cfg_attr(not(test), allow(dead_code))] // checked by the copy tests
-    pub bytes: u64,
-    pub hash: u128,
-}
 
 const ALIGN: usize = 4096;
 const BUF: usize = 1 << 20;
@@ -95,7 +88,7 @@ pub fn copy_hashed(
     part: &Path,
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(u64),
-) -> io::Result<Copied> {
+) -> io::Result<u128> {
     let lpart = long_path(part);
     let mut src_f = open_unbuffered_read(src)?;
     let src_len = src_f.metadata()?.len();
@@ -186,7 +179,7 @@ pub fn copy_hashed(
             format!("read {total} bytes, source was {src_len}"),
         ));
     }
-    Ok(Copied { bytes: total, hash: hasher.digest128() })
+    Ok(hasher.digest128())
 }
 
 /// Stamp `part` with `mtime` (FILETIME ticks) and atomically move it over `dst`.
@@ -201,15 +194,8 @@ pub fn finalize(part: &Path, dst: &Path, mtime: i64) -> io::Result<()> {
     let lpart = long_path(part);
     OpenOptions::new().write(true).open(&lpart)?.set_modified(t)?;
 
-    let wide = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain([0]).collect() };
-    let (from, to) = (wide(&lpart), wide(&long_path(dst)));
-    unsafe {
-        MoveFileExW(
-            PCWSTR(from.as_ptr()),
-            PCWSTR(to.as_ptr()),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )?;
-    }
+    let (from, to) = (HSTRING::from(lpart.as_path()), HSTRING::from(long_path(dst).as_path()));
+    unsafe { MoveFileExW(&from, &to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)? };
     Ok(())
 }
 
@@ -254,8 +240,7 @@ mod tests {
             let data = random_bytes(len, len as u64 + 7);
             fs::write(&src, &data).unwrap();
             let c = copy_hashed(&src, &part, &no_cancel(), &mut |_| {}).unwrap();
-            assert_eq!(c.bytes, len as u64, "len {len}");
-            assert_eq!(c.hash, xxh3_128(&data), "len {len}");
+            assert_eq!(c, xxh3_128(&data), "len {len}");
             assert_eq!(fs::read(&part).unwrap(), data, "len {len}");
         }
     }
@@ -279,9 +264,8 @@ mod tests {
 
         let mut last = 0;
         let c = copy_hashed(&src, &part, &no_cancel(), &mut |n| last = n).unwrap();
-        assert_eq!(c.bytes, data.len() as u64);
         assert_eq!(last, data.len() as u64);
-        assert_eq!(c.hash, xxh3_128(&data));
+        assert_eq!(c, xxh3_128(&data));
         assert_eq!(fs::read(&part).unwrap(), data);
     }
 
@@ -300,7 +284,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!(tried, Some(Some(SHARING_VIOLATION)), "a writer got in mid-copy");
-        assert_eq!(c.hash, xxh3_128(&data));
+        assert_eq!(c, xxh3_128(&data));
     }
 
     #[test]
@@ -326,7 +310,7 @@ mod tests {
         bad[12_345] ^= 0xff;
         fs::write(&part, &bad).unwrap();
         let c = copy_hashed(&src, &part, &no_cancel(), &mut |_| {}).unwrap();
-        assert_eq!(c.hash, xxh3_128(&data));
+        assert_eq!(c, xxh3_128(&data));
         assert_eq!(fs::read(&part).unwrap(), data);
     }
 
@@ -341,7 +325,7 @@ mod tests {
         // Unaligned partial part.
         fs::write(&part, &data[..5000]).unwrap();
         let c = copy_hashed(&src, &part, &no_cancel(), &mut |_| {}).unwrap();
-        assert_eq!(c.hash, xxh3_128(&data));
+        assert_eq!(c, xxh3_128(&data));
         assert_eq!(fs::read(&part).unwrap(), data);
 
         // Full copy plus zero padding: crash between padded write and set_len.
@@ -354,7 +338,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!(first, Some(1 << 20), "progress reported after re-hash");
-        assert_eq!(c.hash, xxh3_128(&data));
+        assert_eq!(c, xxh3_128(&data));
         assert_eq!(fs::read(&part).unwrap(), data);
     }
 
@@ -391,7 +375,7 @@ mod tests {
         fs::write(long_path(&src), &data).unwrap();
 
         let c = copy_hashed(&src, &part, &no_cancel(), &mut |_| {}).unwrap();
-        assert_eq!(c.hash, xxh3_128(&data));
+        assert_eq!(c, xxh3_128(&data));
         finalize(&part, &dst, 133_000_000_000_000_000).unwrap();
         assert_eq!(fs::read(long_path(&dst)).unwrap(), data);
     }
@@ -405,8 +389,8 @@ mod tests {
         fs::write(&src, &data).unwrap();
         let c = copy_hashed(&src, &part, &no_cancel(), &mut |_| {}).unwrap();
         let hash = |p: &Path| hash_file(p, &no_cancel(), &mut |_| {}).unwrap();
-        assert_eq!(hash(&src), c.hash);
-        assert_eq!(hash(&part), c.hash);
+        assert_eq!(hash(&src), c);
+        assert_eq!(hash(&part), c);
         assert_eq!(hash(&src), xxh3_128(&data));
         // Cancelled from its progress: stops before reading on.
         let cancel = no_cancel();

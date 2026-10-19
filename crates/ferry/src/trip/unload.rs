@@ -287,7 +287,7 @@ fn push(ctx: &TripCtx, destination: &Path, item: &CargoItem, laptop: &Path, emit
         emit(Event::Progress { pair: item.pair.clone(), rel: item.rel.clone(), done, total: item.size });
         ctx.go_on(); // spec 4.3: a path that stops being allowed cancels the push
     })
-    .and_then(|c| match c.hash == item.hash {
+    .and_then(|hash| match hash == item.hash {
         false => Ok(PushOutcome::LaptopDamaged),
         // The read-back crosses the network too: a lost path stops it like a cancelled push.
         true if !ctx.go_on() => Err(io::ErrorKind::Interrupted.into()),

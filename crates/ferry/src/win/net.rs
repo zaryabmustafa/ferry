@@ -22,7 +22,7 @@ use windows::Win32::NetworkManagement::Ndis::{IfOperStatusUp, NET_LUID_LH};
 use windows::Win32::Networking::NetworkListManager::{INetworkCostManager, INetworkListManager, NetworkListManager};
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED};
 use windows::Win32::Networking::WinSock::{
-    AF_INET, AF_INET6, AF_UNSPEC, IN6_ADDR, IN6_ADDR_0, IN_ADDR, IN_ADDR_0, SOCKADDR,
+    AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR,
     SOCKADDR_IN, SOCKADDR_IN6, SOCKADDR_INET,
 };
 
@@ -90,7 +90,7 @@ pub fn adapters() -> io::Result<Vec<Adapter>> {
 
 /// Interface index Windows would route `ip` through.
 pub fn best_interface(ip: IpAddr) -> Option<u32> {
-    let sa = sockaddr_inet(ip);
+    let sa = SOCKADDR_INET::from(SocketAddr::new(ip, 0));
     let mut idx = 0u32;
     let rc = unsafe { GetBestInterfaceEx(&sa as *const SOCKADDR_INET as *const SOCKADDR, &mut idx) };
     (rc == 0).then_some(idx)
@@ -258,7 +258,7 @@ unsafe extern "system" fn on_ip_change<Row>(
 /// look it up in the neighbor table. All-zero MACs count as unknown.
 fn gateway_mac(if_index: u32, gw: Ipv4Addr) -> Option<[u8; 6]> {
     let mut row = MIB_IPNET_ROW2 { InterfaceIndex: if_index, ..Default::default() };
-    row.Address = sockaddr_inet(IpAddr::V4(gw));
+    row.Address = SOCKADDR_INET::from(SocketAddr::new(gw.into(), 0));
     if unsafe { ResolveIpNetEntry2(&mut row, None) } == ERROR_SUCCESS {
         if let Some(mac) = row_mac(&row) {
             return Some(mac);
@@ -295,35 +295,14 @@ unsafe fn sockaddr_ip(sa: *const SOCKADDR) -> Option<IpAddr> {
     unsafe {
         if fam == AF_INET {
             let s = &*(sa as *const SOCKADDR_IN);
-            Some(Ipv4Addr::from(s.sin_addr.S_un.S_addr.to_ne_bytes()).into())
+            Some(Ipv4Addr::from(s.sin_addr).into())
         } else if fam == AF_INET6 {
             let s = &*(sa as *const SOCKADDR_IN6);
-            Some(Ipv6Addr::from(s.sin6_addr.u.Byte).into())
+            Some(Ipv6Addr::from(s.sin6_addr).into())
         } else {
             None
         }
     }
-}
-
-fn sockaddr_inet(ip: IpAddr) -> SOCKADDR_INET {
-    let mut sa = SOCKADDR_INET::default();
-    match ip {
-        IpAddr::V4(v4) => {
-            sa.Ipv4 = SOCKADDR_IN {
-                sin_family: AF_INET,
-                sin_addr: IN_ADDR { S_un: IN_ADDR_0 { S_addr: u32::from_ne_bytes(v4.octets()) } },
-                ..Default::default()
-            }
-        }
-        IpAddr::V6(v6) => {
-            sa.Ipv6 = SOCKADDR_IN6 {
-                sin6_family: AF_INET6,
-                sin6_addr: IN6_ADDR { u: IN6_ADDR_0 { Byte: v6.octets() } },
-                ..Default::default()
-            }
-        }
-    }
-    sa
 }
 
 #[cfg(test)]

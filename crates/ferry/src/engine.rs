@@ -119,8 +119,9 @@ fn unix_now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
+/// Sizes count in 1024s and say MB and GB, as Windows Explorer does (and the windows do).
 fn mb(bytes: u64) -> String {
-    format!("{:.1} MB", bytes as f64 / 1e6)
+    format!("{:.1} MB", bytes as f64 / (1u64 << 20) as f64)
 }
 
 /// IPC handler side: forward to the engine and wait for its answer.

@@ -46,6 +46,7 @@ fn log_error(window: &str, msg: &str) {
 
 // ---------- copy (pure) ----------
 
+/// Sizes count in 1024s and say MB and GB, as Windows Explorer does.
 const GIB: f64 = (1u64 << 30) as f64;
 
 /// GiB with one decimal, ".0" dropped: 38.2, 50.
@@ -70,8 +71,8 @@ fn detail_line(carried: u64, cap: u64, rate_bps: u64, eta_secs: Option<u64>) -> 
     if cap > 0 {
         parts.push(format!("{} of {} GB", gb(carried), gb(cap)));
     }
-    if rate_bps / 1_000_000 > 0 {
-        parts.push(format!("{} MB/s", rate_bps / 1_000_000));
+    if rate_bps >> 20 > 0 {
+        parts.push(format!("{} MB/s", rate_bps >> 20));
     }
     if let Some(s) = eta_secs.filter(|&s| s > 0) {
         parts.push(format!("about {} min left", s.div_ceil(60)));
@@ -712,7 +713,7 @@ mod tests {
     #[test]
     fn formats_detail_line() {
         assert_eq!(
-            detail_line(41_016_000_000, 53_687_091_200, 108_000_000, Some(120)),
+            detail_line(41_016_000_000, 53_687_091_200, 108 << 20, Some(120)),
             "38.2 of 50 GB · 108 MB/s · about 2 min left"
         );
     }
@@ -726,7 +727,7 @@ mod tests {
     fn detail_line_omits_empty_parts_and_rounds_eta_up() {
         assert_eq!(detail_line(0, 0, 0, None), "");
         assert_eq!(detail_line(0, 53_687_091_200, 0, Some(0)), "0 of 50 GB");
-        assert_eq!(detail_line(0, 0, 5_000_000, Some(61)), "5 MB/s · about 2 min left");
+        assert_eq!(detail_line(0, 0, 5 << 20, Some(61)), "5 MB/s · about 2 min left");
     }
 
     #[test]

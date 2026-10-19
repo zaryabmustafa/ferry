@@ -39,22 +39,22 @@ env:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Prepare the runner
         run: bash .github/scripts/prepare.sh $MINGW_PACKAGES
 
       - name: Restore the Rust toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.rustup
           key: rustup-${{ hashFiles('rust-toolchain.toml') }}
 
       - name: Restore Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry/index
@@ -88,10 +88,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Restore Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry/index
@@ -110,13 +110,13 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     outputs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Work out the version
         id: version
@@ -141,13 +141,13 @@ jobs:
         run: bash .github/scripts/prepare.sh $MINGW_PACKAGES icoutils
 
       - name: Restore the Rust toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.rustup
           key: rustup-${{ hashFiles('rust-toolchain.toml') }}
 
       - name: Restore Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry/index
@@ -182,7 +182,7 @@ jobs:
           mkdir -p bin && cp "$bin/ferry.exe" bin/
 
       - name: Keep the programs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: programs
           path: bin/
@@ -191,18 +191,18 @@ jobs:
   package:
     name: Package
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Prepare the runner
         run: bash .github/scripts/prepare.sh nsis zip
 
       - name: Get the programs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: programs
           path: bin
@@ -218,7 +218,7 @@ jobs:
           ls -l dist && cat dist/SHA256SUMS.txt
 
       - name: Keep the packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ferry-${{ env.VERSION }}
           path: dist/
@@ -228,7 +228,7 @@ jobs:
     name: Release
     needs: [lint, test, build, package]
     if: needs.build.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -236,7 +236,7 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
       # Full history and tags: the notes list the commits since the previous tag.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -244,7 +244,7 @@ jobs:
         run: bash .github/scripts/prepare.sh openssl
 
       - name: Get the packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ferry-${{ env.VERSION }}
           path: dist

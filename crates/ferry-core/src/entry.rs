@@ -37,9 +37,24 @@ fn mtime_of(_: &std::fs::Metadata) -> i64 {
     0
 }
 
-/// Listing order: case-insensitive, then exact name.
+/// A name folded the way NTFS and SMB compare names: each character to its simple uppercase,
+/// or itself when that is more than one character (ß), as Windows' upcase table does. Unlike
+/// `to_lowercase`, ς and σ are one name, and ı, ſ and the Kelvin sign fold as Windows folds them.
+pub fn fold(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            let mut u = c.to_uppercase();
+            match (u.next(), u.next()) {
+                (Some(x), None) => x,
+                _ => c,
+            }
+        })
+        .collect()
+}
+
+/// Listing order: case-insensitive (as Windows folds case), then exact name.
 pub fn name_order(a: &str, b: &str) -> std::cmp::Ordering {
-    a.to_lowercase().cmp(&b.to_lowercase()).then_with(|| a.cmp(b))
+    fold(a).cmp(&fold(b)).then_with(|| a.cmp(b))
 }
 
 /// A name a server may hand back that is safe to join under a root: one plain component, valid
@@ -79,6 +94,15 @@ pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
 mod tests {
     use super::*;
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn names_fold_as_windows_folds_them() {
+        assert_eq!(fold("Report.TXT"), fold("report.txt"));
+        assert_eq!(fold("\u{3c2}"), fold("\u{3c3}"), "final and medial sigma are one letter");
+        assert_eq!(fold("stra\u{df}e"), "STRA\u{df}E", "sharp s stays: its uppercase is two letters");
+        assert_ne!(fold("k"), fold("\u{212a}"), "the Kelvin sign is its own name on NTFS");
+        assert_eq!(name_order("a", "B"), std::cmp::Ordering::Less);
+    }
 
     #[test]
     fn long_path_prefixes() {

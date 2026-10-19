@@ -7,7 +7,7 @@
 
 use crate::cargo::write_atomic_with;
 use crate::diff::{at, join};
-use crate::entry::{list_dir, name_order, Entry};
+use crate::entry::{fold, list_dir, name_order, Entry};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom, Write};
@@ -50,7 +50,7 @@ impl Snapshot {
         let mut r = BufReader::new(File::open(path)?);
         let pos = header(&mut r)?;
         let mut index = HashMap::new();
-        blocks(&mut r, pos, |at, dir, _| match index.insert(dir.to_lowercase(), at) {
+        blocks(&mut r, pos, |at, dir, _| match index.insert(fold(&dir), at) {
             None => Ok(true),
             Some(_) => Err(damaged()),
         })?;
@@ -111,7 +111,7 @@ fn edits(changes: &[Change]) -> Vec<Edit> {
 impl SnapshotReader {
     /// One directory's entries in `name_order`; a directory the snapshot lacks is empty.
     pub fn dir(&mut self, rel_dir: &str) -> io::Result<Vec<Entry>> {
-        let (Some(r), Some(&at)) = (self.file.as_mut(), self.index.get(&rel_dir.to_lowercase())) else {
+        let (Some(r), Some(&at)) = (self.file.as_mut(), self.index.get(&fold(rel_dir))) else {
             return Ok(vec![]);
         };
         r.seek(SeekFrom::Start(at))?;
@@ -151,7 +151,7 @@ fn parse_entry(l: &str) -> Option<Entry> {
 fn write_block(w: &mut dyn Write, dir: &str, entries: &[Entry]) -> io::Result<()> {
     // A case-sensitive share can hold both; `open` indexes folders ignoring case, so refuse
     // rather than write a snapshot it would reject. Files differing in case are kept.
-    if let Some(p) = entries.windows(2).find(|p| p[0].is_dir && p[1].is_dir && p[0].name.to_lowercase() == p[1].name.to_lowercase()) {
+    if let Some(p) = entries.windows(2).find(|p| p[0].is_dir && p[1].is_dir && fold(&p[0].name) == fold(&p[1].name)) {
         let msg = format!("folders {} and {} differ only in case", join(dir, &p[0].name), join(dir, &p[1].name));
         return Err(io::Error::new(io::ErrorKind::InvalidInput, msg));
     }
@@ -210,7 +210,7 @@ struct Edit {
 
 impl Edit {
     fn apply(&self, v: &mut Vec<Entry>) {
-        let i = v.iter().position(|e| e.name.to_lowercase() == self.name.to_lowercase());
+        let i = v.iter().position(|e| fold(&e.name) == fold(&self.name));
         match (&self.to, i) {
             // The folder is already there.
             (Some(e), Some(i)) if e.is_dir && v[i].is_dir => {}
@@ -242,7 +242,7 @@ fn rewrite(path: &Path, edits: &[Edit]) -> io::Result<()> {
         let mut seen = vec![false; edits.len()];
         blocks(&mut src, pos, |_, dir, mut v| {
             for (e, s) in edits.iter().zip(&mut seen) {
-                if e.dir.to_lowercase() == dir.to_lowercase() {
+                if fold(&e.dir) == fold(&dir) {
                     *s = true;
                     e.apply(&mut v);
                 }
@@ -254,7 +254,7 @@ fn rewrite(path: &Path, edits: &[Edit]) -> io::Result<()> {
         // New directories, grouped ignoring case: two `D` blocks for one folder would be damage.
         let mut new: Vec<(String, Vec<Entry>)> = vec![];
         for (e, _) in edits.iter().zip(&seen).filter(|(_, s)| !**s) {
-            let i = match new.iter().position(|(d, _)| d.to_lowercase() == e.dir.to_lowercase()) {
+            let i = match new.iter().position(|(d, _)| fold(d) == fold(&e.dir)) {
                 Some(i) => i,
                 None if e.to.is_some() => {
                     new.push((e.dir.clone(), vec![]));

@@ -162,7 +162,7 @@ pub fn unc(host: &str, share_path: &str) -> PathBuf {
 /// Two such pairs would each see the other's files as extra and delete them, so they are refused.
 /// Compared like SMB paths: case-insensitive, `/` and `\` alike.
 pub fn overlapping_destination<'a>(pairs: &'a [Pair], dest: &str, except: Option<&str>) -> Option<&'a str> {
-    let norm = |s: &str| format!("{}\\", s.replace('/', "\\").trim_matches('\\').to_lowercase());
+    let norm = |s: &str| format!("{}\\", crate::entry::fold(s.replace('/', "\\").trim_matches('\\')));
     let d = norm(dest);
     pairs
         .iter()

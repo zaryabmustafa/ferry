@@ -5,7 +5,7 @@ use crate::win::copy::{copy_hashed, finalize};
 use ferry_core::cargo::{CargoItem, CargoManifest, Partial};
 use ferry_core::deletes::{decide, DeleteDecision, PairDeletes};
 use ferry_core::diff::{diff_pair, Candidate, DestinationView};
-use ferry_core::entry::long_path;
+use ferry_core::entry::{fold, long_path};
 use ferry_core::load::{budget, pick_load};
 use ferry_core::snapshot::SnapshotReader;
 use std::fs;
@@ -25,7 +25,7 @@ fn gone_at_source(source: &Path, rel: &str) -> bool {
 }
 
 fn same_version(p: &Partial, c: &Candidate) -> bool {
-    p.pair == c.pair && p.rel.to_lowercase() == c.rel.to_lowercase() && p.size == c.size && p.mtime == c.mtime
+    p.pair == c.pair && fold(&p.rel) == fold(&c.rel) && p.size == c.size && p.mtime == c.mtime
 }
 
 /// Source walk at the source (LAN), the destination listed over its remote address, or read from
@@ -90,6 +90,10 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
             }
         };
 
+        for rel in &d.case_clashes {
+            let (src, dest) = (ctx.source_name, ctx.destination_name);
+            emit(err(format!("{rel}: another file at {src} has the same name but for case; Windows can keep only one, so neither is copied and deletes at {dest} wait")));
+        }
         // A listing can leave out files that are there (Access-Based Enumeration, Samba's `hide
         // unreadable`): only a file the source can't find when asked by name is deleted.
         let listed = d.deletes.len();

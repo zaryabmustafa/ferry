@@ -1,5 +1,5 @@
 use crate::cargo::CargoManifest;
-use crate::entry::{list_dir, name_order, Entry, TICKS_PER_SEC};
+use crate::entry::{fold, list_dir, name_order, Entry, TICKS_PER_SEC};
 use crate::snapshot::SnapshotReader;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -23,6 +23,9 @@ pub struct PairDiff {
     pub complete: bool,
     pub source_files: u64,
     pub destination_files: u64,
+    /// Source names that differ only in case (a case-sensitive server): a Windows folder can hold
+    /// only one, so neither is copied, and the listing isn't trusted for deletes.
+    pub case_clashes: Vec<String>,
     /// Source files that differ from the destination and aren't in cargo, but are still inside the
     /// stability window: not candidates yet, yet they must hold the pair's deletes.
     pub unstable: u64,
@@ -44,7 +47,7 @@ pub(crate) fn join(dir: &str, name: &str) -> String {
 /// Merge order of two sorted listings. SMB names are case-insensitive, so names equal
 /// ignoring case are the same file.
 fn merge_order(a: &str, b: &str) -> Ordering {
-    if a.to_lowercase() == b.to_lowercase() {
+    if fold(a) == fold(b) {
         Ordering::Equal
     } else {
         name_order(a, b)
@@ -118,15 +121,15 @@ pub fn diff_pair(
 ) -> io::Result<PairDiff> {
     let mut d = PairDiff { complete: true, ..Default::default() };
     // Cargo rels not yet seen at the source; leftovers are gone.
-    // Keyed by lowercase rel (case-insensitive shares), valued by the original rel.
+    // Keyed by folded rel (case-insensitive shares), valued by the original rel.
     let mut unseen: HashMap<String, &str> =
-        cargo.items.iter().filter(|i| i.pair == pair).map(|i| (i.rel.to_lowercase(), i.rel.as_str())).collect();
+        cargo.items.iter().filter(|i| i.pair == pair).map(|i| (fold(&i.rel), i.rel.as_str())).collect();
 
     // (rel dir, does the destination side exist as a directory)
     let mut stack = vec![(String::new(), true)];
     while let Some((dir, destination_exists)) = stack.pop() {
         let is_root = dir.is_empty();
-        let source = match list_dir(&at(source_root, &dir)) {
+        let mut source = match list_dir(&at(source_root, &dir)) {
             Ok(v) => v,
             Err(e) if is_root => return Err(e),
             Err(_) => {
@@ -150,6 +153,18 @@ pub fn diff_pair(
             }
         };
 
+        // Names equal but for case sort next to each other; a Windows folder can hold only one.
+        let clashing = clashing_names(&source);
+        if !clashing.is_empty() {
+            d.complete = false;
+            source.retain(|e| {
+                let clash = clashing.contains(&fold(&e.name));
+                if clash {
+                    d.case_clashes.push(join(&dir, &e.name));
+                }
+                !clash
+            });
+        }
         let (mut i, mut j) = (0, 0);
         while i < source.len() || j < destination_list.len() {
             let ord = match (source.get(i), destination_list.get(j)) {
@@ -189,12 +204,17 @@ pub fn diff_pair(
     Ok(d)
 }
 
+/// Folded names that two entries of one sorted listing share (a case-sensitive server).
+fn clashing_names(sorted: &[Entry]) -> Vec<String> {
+    sorted.windows(2).filter(|w| fold(&w[0].name) == fold(&w[1].name)).map(|w| fold(&w[0].name)).collect()
+}
+
 fn skip_subtree(unseen: &mut HashMap<String, &str>, dir: &str) {
     if dir.is_empty() {
         unseen.clear();
         return;
     }
-    let prefix = format!("{}\\", dir.to_lowercase());
+    let prefix = format!("{}\\", fold(dir));
     unseen.retain(|r, _| !r.starts_with(&prefix));
 }
 
@@ -218,7 +238,7 @@ fn handle_source(
         return;
     }
     d.source_files += 1;
-    unseen.remove(&rel.to_lowercase());
+    unseen.remove(&fold(&rel));
     let differs = match destination {
         Some(h) => h.size != o.size || !same_mtime(h.mtime, o.mtime),
         None => true,
@@ -282,6 +302,15 @@ mod tests {
 
     fn setup() -> (tempfile::TempDir, tempfile::TempDir, i64) {
         (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), now() - DAY)
+    }
+
+    #[test]
+    fn names_differing_only_in_case_clash() {
+        let e = |n: &str| Entry { name: n.into(), is_dir: false, size: 1, mtime: 1 };
+        let mut v = vec![e("b.txt"), e("A.txt"), e("a.txt"), e("c.txt")];
+        v.sort_by(|a, b| name_order(&a.name, &b.name));
+        assert_eq!(clashing_names(&v), ["A.TXT"]);
+        assert!(clashing_names(&[e("a.txt"), e("b.txt")]).is_empty());
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use crate::entry::fold;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -103,7 +104,7 @@ impl CargoManifest {
     pub fn has(&self, pair: &str, rel: &str, size: u64, mtime: i64) -> bool {
         self.items
             .iter()
-            .any(|i| i.pair == pair && i.rel.to_lowercase() == rel.to_lowercase() && i.size == size && i.mtime == mtime)
+            .any(|i| i.pair == pair && fold(&i.rel) == fold(rel) && i.size == size && i.mtime == mtime)
     }
 
     /// Missing file → empty manifest.
@@ -121,8 +122,8 @@ impl CargoManifest {
 
     /// Drop every version of (pair, rel); rel matches case-insensitively, pair exactly.
     pub fn remove(&mut self, pair: &str, rel: &str) {
-        let rel = rel.to_lowercase();
-        self.items.retain(|i| !(i.pair == pair && i.rel.to_lowercase() == rel));
+        let rel = fold(rel);
+        self.items.retain(|i| !(i.pair == pair && fold(&i.rel) == rel));
     }
 }
 

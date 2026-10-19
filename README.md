@@ -66,6 +66,13 @@ Download from the [latest release](https://github.com/zaryabmustafa/ferry/releas
 | `Ferry-<version>-portable-x64.zip` | The same `ferry.exe`, to unzip and run anywhere. Doesn't update itself. |
 | `SHA256SUMS.txt`, `.sig` | Checksums for both, and their signature. |
 
+**Ferry isn't code-signed yet**, so Windows warns the first time you run it:
+
+- **SmartScreen** says "Windows protected your PC". Choose **More info**, then **Run anyway**. Check the file first if you like: its SHA-256 is in `SHA256SUMS.txt`.
+- **Smart App Control** (Windows 11) blocks unsigned apps with no way past it. If it is on, Ferry won't start until it is turned off, and Windows only turns it back on with a reinstall.
+
+Updates aren't affected: Ferry checks each one against its own update signature before installing it ([How updates work](docs/updates.md)).
+
 <a href="https://slint.dev"><img src="https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png" alt="Made with Slint" width="160"></a>
 
 ### First run

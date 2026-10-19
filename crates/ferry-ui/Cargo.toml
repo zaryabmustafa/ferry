@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 ferry-core = { path = "../ferry-core" }
 slint = { version = "1.18", default-features = false, features = ["compat-1-2", "std", "backend-winit", "renderer-software", "unstable-winit-030", "accessibility"] }
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_UI_Accessibility",

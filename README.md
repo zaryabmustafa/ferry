@@ -76,6 +76,8 @@ Download from the [latest release](https://github.com/zaryabmustafa/ferry/releas
 
 Passwords are kept in Windows Credential Manager, not in the config file.
 
+**Reinstalling Windows?** Export a backup first (Settings > Backup), then choose Restore from a backup on the first setup screen. [What a backup holds →](docs/how-it-works.md#backup-and-restore)
+
 ## Good to know
 
 **Ferry is careful with your files.**

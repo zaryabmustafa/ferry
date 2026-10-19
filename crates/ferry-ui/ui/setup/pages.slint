@@ -959,6 +959,18 @@ export component SettingsPage inherits Page {
         }
     }
 
+    SectionLabel { text: "BACKUP"; }
+    Card {
+        CardRow {
+            icon: "\u{E8F1}";
+            title: "Settings backup";
+            body: "One file with your servers, folders, learned networks and what the laptop is carrying. Passwords aren't in it: after a restore, Ferry asks for them.";
+            VerticalLayout { alignment: center; Btn { icon: "\u{E74E}"; text: "Export"; label: "Export a settings backup"; clicked => { S.export-backup(); } } }
+            VerticalLayout { alignment: center; Btn { icon: "\u{E777}"; text: "Restore"; label: "Restore settings from a backup"; clicked => { S.restore-backup(); } } }
+        }
+    }
+    if S.backup-note.text != "": NoteView { note: S.backup-note; }
+
     SectionLabel { text: "ABOUT"; }
     Card {
         CardRow {

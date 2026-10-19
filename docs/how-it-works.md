@@ -7,6 +7,7 @@ The [README](../README.md) has the short version. This page has the detail: when
 - [What Ferry trusts](#what-ferry-trusts)
 - [With or without a remote address](#with-or-without-a-remote-address)
 - [Where things live](#where-things-live)
+- [Backup and restore](#backup-and-restore)
 - [Footprint](#footprint)
 
 ## When Ferry copies
@@ -96,6 +97,18 @@ Snapshots are stored one per folder pair and read one directory at a time, so me
 In `config.toml` the two servers are the `source` and `destination` tables, each folder pair has `source_path` and `destination_path`, and the first-run answer is `destination_starts_empty`. Older configs that use the keys `office`, `home`, `office_path`, `home_path` and `home_starts_empty` still load, and Ferry writes the new names when it saves.
 
 Nothing is sent anywhere except to your two servers (and, if you use Tailscale, to the local `tailscale.exe`). The one other request is the daily [update check](updates.md), which sends nothing but Ferry's version in its user agent.
+
+## Backup and restore
+
+Settings > Backup > Export saves one JSON file with `config.toml` (servers, folder pairs, learned networks, options), the cargo list, the delete queue and the destination snapshots. It has server addresses and user names but no passwords, which stay in Credential Manager.
+
+Restore is under Settings > Backup, and as Restore from a backup on the first setup screen, so a fresh install can skip setup. Ferry must be running, and it does the restore itself:
+
+- **It refuses while the laptop carries files or holds deletes,** because the restore would orphan them. Unload at the destination first. It also refuses during a trip; pause Ferry and try again.
+- **Carried files are kept only if they are still in the cargo folder** at the recorded size. The default cargo folder is in `%LOCALAPPDATA%`, which a Windows reinstall wipes, so those files are dropped from the list and carried again. A cargo folder on another drive survives, and its files are delivered as usual.
+- **Snapshots come back,** so in sneakernet mode the next source visit can fill without first visiting the destination. They describe the destination as of the backup, so restore a recent one: a stale snapshot only makes Ferry carry files the destination already has, and queued deletes are still held by the usual thresholds.
+- **A backup is checked before anything is written.** One with a folder id, file or snapshot entry that would point outside Ferry's folders is refused.
+- **Then Ferry opens Locations and asks for each server's password.** Enter it and choose Save {name} server.
 
 ## Footprint
 

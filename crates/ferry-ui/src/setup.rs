@@ -1,5 +1,6 @@
 //! `ferry --setup`: the Settings-style window (mockup A) and the first run.
 use super::*;
+use ferry_core::backup;
 use ferry_core::cargo::CargoManifest;
 use ferry_core::config::{self, display_name, Config, Fingerprint, Pair, Server, GB};
 use ferry_core::deletes::DeleteQueue;
@@ -569,6 +570,8 @@ fn wire(ui: &Setup) {
     on!(on_save_settings, |ui| save_settings(&ui));
     on!(on_check_update, |ui| check_update(&ui));
     on!(on_install_update, |ui| install_update(&ui));
+    on!(on_export_backup, |ui| export_backup(&ui));
+    on!(on_restore_backup, |ui| restore_backup(&ui));
     on!(on_choose_cargo, |ui| {
         let owner = ui.window().with_winit_window(win::hwnd).flatten();
         if let Some(p) = win::pick_folder(owner) {
@@ -1234,6 +1237,55 @@ fn save_settings(ui: &Setup) {
         Ok(cfg) => saved(ui, cfg, "Saved.", |g: &S, n| g.set_settings_note(n)),
         Err(e) => g.set_settings_note(problem(e)),
     }
+}
+
+// ---------- backup ----------
+
+fn export_backup(ui: &Setup) {
+    let owner = ui.window().with_winit_window(win::hwnd).flatten();
+    let Some(to) = win::pick_backup(owner, true, "Ferry backup.json") else { return };
+    let r = (|| {
+        let config = config_path()?;
+        let (Some(manifest), Some(deletes), Some(snapshots)) = (state_path("manifest.json"), state_path("deletes.json"), state_path("snapshots"))
+        else {
+            return Err("LOCALAPPDATA is not set.".to_string());
+        };
+        let files = backup::Files { config: &config, manifest: &manifest, deletes: &deletes, snapshots: &snapshots };
+        let text = backup::export(&files, env!("CARGO_PKG_VERSION")).map_err(|e| format!("Couldn't export: {e}"))?;
+        std::fs::write(&to, text).map_err(|e| format!("Couldn't save {}: {e}", to.display()))
+    })();
+    ui.global::<S>().set_backup_note(match r {
+        Ok(()) => note(format!("Saved to {}. It has your server addresses and user names, but no passwords.", to.display()), DONE),
+        Err(e) => problem(e),
+    });
+}
+
+/// The engine restores (it owns the state files), then the window shows the restored settings
+/// and opens Locations to ask for the passwords, which a backup never holds.
+fn restore_backup(ui: &Setup) {
+    let owner = ui.window().with_winit_window(win::hwnd).flatten();
+    let Some(from) = win::pick_backup(owner, false, "") else { return };
+    ui.global::<S>().set_backup_note(note("Restoring...", WORKING));
+    send(ui, vec![Request::Restore { path: from.to_string_lossy().into_owned() }], |ui, r| {
+        let g = ui.global::<S>();
+        let cfg = match r.map_err(|(_, e)| e).and_then(|()| load()) {
+            Ok(c) => c,
+            Err(e) => return g.set_backup_note(problem(e)),
+        };
+        show_servers(&g, &cfg);
+        show_settings(&g, &cfg);
+        st(|s| s.cfg = cfg);
+        show_config(ui);
+        g.set_backup_note(note("Restored.", DONE));
+        g.set_first_run(false);
+        go(ui, 2);
+        for side in [Side::Source, Side::Destination] {
+            let (set, name) = st(|s| (!server(&s.cfg, side).lan_host.is_empty(), display_name(&s.cfg, side)));
+            if set {
+                put_server_note(&g, side, problem(format!("Restored. Backups don't hold passwords: enter the password for {name}, then choose Save {name} server.")));
+            }
+        }
+    });
 }
 
 // ---------- pure helpers ----------

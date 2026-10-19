@@ -36,6 +36,8 @@ pub enum Request {
     CheckUpdate,
     /// Download, verify and install the newest release; Ferry restarts.
     InstallUpdate,
+    /// Replace the settings and laptop state with a backup file's (see `backup::restore`).
+    Restore { path: String },
     Quit,
 }
 
@@ -62,6 +64,7 @@ impl fmt::Debug for Request {
             Request::PathStatus { side } => f.debug_struct("PathStatus").field("side", side).finish(),
             Request::CheckUpdate => f.write_str("CheckUpdate"),
             Request::InstallUpdate => f.write_str("InstallUpdate"),
+            Request::Restore { path } => f.debug_struct("Restore").field("path", path).finish(),
             Request::Quit => f.write_str("Quit"),
         }
     }

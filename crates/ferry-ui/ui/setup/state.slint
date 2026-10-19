@@ -137,6 +137,10 @@ export global S {
     callback install-update();
     callback save-settings();
     callback choose-cargo();
+    // Backup: shown under Settings, and on the first run's first step.
+    in property <Note> backup-note;
+    callback export-backup();
+    callback restore-backup();
 
     // First run: 0 source, 1 destination, 2 this network, 3 first folder, 4 closing note
     in property <int> step;

@@ -637,6 +637,31 @@ mod win {
         }
     }
 
+    /// The Windows Open dialog, or (`save`) Save As starting at `name`, for a backup file. None when
+    /// cancelled or unavailable.
+    pub fn pick_backup(owner: Option<HWND>, save: bool, name: &str) -> Option<std::path::PathBuf> {
+        use windows::core::{w, HSTRING};
+        use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED};
+        use windows::Win32::UI::Shell::Common::COMDLG_FILTERSPEC;
+        use windows::Win32::UI::Shell::{FileOpenDialog, FileSaveDialog, IFileDialog, FOS_FILEMUSTEXIST, FOS_FORCEFILESYSTEM, SIGDN_FILESYSPATH};
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            let d: IFileDialog = CoCreateInstance(if save { &FileSaveDialog } else { &FileOpenDialog }, None, CLSCTX_INPROC_SERVER).ok()?;
+            d.SetFileTypes(&[COMDLG_FILTERSPEC { pszName: w!("Ferry backup"), pszSpec: w!("*.json") }]).ok()?;
+            d.SetDefaultExtension(w!("json")).ok()?;
+            let must_exist = if save { Default::default() } else { FOS_FILEMUSTEXIST };
+            d.SetOptions(d.GetOptions().ok()? | FOS_FORCEFILESYSTEM | must_exist).ok()?;
+            if save {
+                d.SetFileName(&HSTRING::from(name)).ok()?;
+            }
+            d.Show(owner).ok()?;
+            let path = d.GetResult().ok()?.GetDisplayName(SIGDN_FILESYSPATH).ok()?;
+            let p = path.to_string().ok();
+            CoTaskMemFree(Some(path.0 as *const _));
+            p.map(Into::into)
+        }
+    }
+
     pub fn reg_dword(key: PCWSTR, name: PCWSTR) -> Option<u32> {
         let mut v = 0u32;
         let mut n = 4u32;

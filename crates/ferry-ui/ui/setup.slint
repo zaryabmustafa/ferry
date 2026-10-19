@@ -227,7 +227,9 @@ component FirstRun inherits ScrollView {
                     if S.step == 3: Btn { primary: true; text: S.adding ? "Add folder" : "Save folder"; clicked => { S.next(); } }
                     if S.step == 4: Btn { primary: true; text: "Open Ferry"; init => { self.focus(); } clicked => { S.next(); } }
                     if S.step == 2 || S.step == 3: Btn { ghost: true; text: "Skip for now"; clicked => { S.skip(); } }
+                    if S.step == 0: Btn { ghost: true; icon: "\u{E777}"; text: "Restore from a backup"; clicked => { S.restore-backup(); } }
                 }
+                if S.step == 0 && S.backup-note.text != "": NoteView { note: S.backup-note; }
             }
         }
     }

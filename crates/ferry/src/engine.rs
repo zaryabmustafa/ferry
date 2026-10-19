@@ -7,6 +7,7 @@ use crate::trip::{purge_unknown, Event, UnloadReport};
 use crate::win::tray::{self, Ev, Icon, MenuCmd};
 use crate::update::{self, Outcome};
 use crate::win::{net, power, smb, toast};
+use ferry_core::backup;
 use ferry_core::cargo::CargoManifest;
 use ferry_core::config::{self, display_name, Config, Fingerprint, Server};
 use ferry_core::deletes::DeleteQueue;
@@ -736,6 +737,9 @@ impl Engine {
             Request::PathStatus { side } => return self.path_status(side, reply),
             Request::CheckUpdate => return self.check_update(reply),
             Request::InstallUpdate => self.install_update(),
+            // A running trip owns the state files.
+            Request::Restore { .. } if self.trip.is_some() => Response::Err("Ferry is copying right now. Pause Ferry, then restore.".into()),
+            Request::Restore { path } => self.restore(&path),
             Request::Quit => {
                 self.log.line("quit requested");
                 // Give the IPC thread a moment to deliver this reply before the process ends.
@@ -783,6 +787,23 @@ impl Engine {
                 Response::Ok
             }
             Err(e) => Response::Err(format!("settings: {e}")),
+        }
+    }
+
+    fn restore(&mut self, path: &str) -> Response {
+        let text = match fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(e) => return Response::Err(format!("Can't read {path}: {e}")),
+        };
+        let p = &self.paths;
+        let files = backup::Files { config: &p.config, manifest: &p.manifest, deletes: &p.deletes, snapshots: &p.snapshots };
+        let dest = display_name(&self.cfg, Side::Destination);
+        match backup::restore(&text, &files, &p.cargo, &dest) {
+            Ok(r) => {
+                self.log.line(&format!("settings restored from a backup; {} carried files kept, {} no longer on the laptop", r.kept, r.dropped));
+                self.reload()
+            }
+            Err(e) => Response::Err(e),
         }
     }
 

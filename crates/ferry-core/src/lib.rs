@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod cargo;
 pub mod deletes;
 pub mod diff;

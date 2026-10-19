@@ -96,7 +96,13 @@ pub fn connect(host: &str, share: &str, target: &str) -> io::Result<()> {
     let rc = unsafe { WNetAddConnection2W(&nr, PCWSTR(pw.as_ptr()), PCWSTR(u.as_ptr()), NET_CONNECT_FLAGS(0)) };
     wipe(&mut pw);
     match rc {
-        r if r == NO_ERROR || r == ERROR_SESSION_CREDENTIAL_CONFLICT || r == ERROR_ALREADY_ASSIGNED => Ok(()),
+        r if r == NO_ERROR || r == ERROR_ALREADY_ASSIGNED => Ok(()),
+        // Windows keeps one sign-in per server: another account's session (File Explorer, a mapped
+        // drive) would be used instead of this one, so a test would prove nothing and a trip would
+        // copy as someone else.
+        r if r == ERROR_SESSION_CREDENTIAL_CONFLICT => Err(io::Error::other(format!(
+            r"Windows is already signed in to \\{host} as another user, for example in File Explorer. Ferry won't use that sign-in: disconnect it (net use \\{host} /delete), then try again."
+        ))),
         // Signed in, but this account may not use the share: keep the OS code so callers can say so.
         r if r == ERROR_ACCESS_DENIED => Err(io::Error::from_raw_os_error(r.0 as i32)),
         r if r == ERROR_LOGON_FAILURE => Err(io::Error::new(

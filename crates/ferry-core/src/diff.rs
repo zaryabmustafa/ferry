@@ -2,7 +2,7 @@ use crate::cargo::CargoManifest;
 use crate::entry::{fold, list_dir, name_order, Entry, TICKS_PER_SEC};
 use crate::snapshot::SnapshotReader;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -120,6 +120,7 @@ pub fn diff_pair(
     stable_secs: i64,
 ) -> io::Result<PairDiff> {
     let mut d = PairDiff { complete: true, ..Default::default() };
+    let carried = cargo.versions();
     // Cargo rels not yet seen at the source; leftovers are gone.
     // Keyed by folded rel (case-insensitive shares), valued by the original rel.
     let mut unseen: HashMap<String, &str> =
@@ -174,7 +175,7 @@ pub fn diff_pair(
             };
             match ord {
                 Ordering::Less => {
-                    handle_source(pair, &dir, &source[i], None, cargo, now, stable_secs, &mut unseen, &mut stack, &mut d);
+                    handle_source(pair, &dir, &source[i], None, &carried, now, stable_secs, &mut unseen, &mut stack, &mut d);
                     i += 1;
                 }
                 Ordering::Greater => {
@@ -186,12 +187,12 @@ pub fn diff_pair(
                     if h.is_dir != o.is_dir {
                         // The source wins: the destination entry (a dir's contents) goes.
                         delete_entry(&mut destination, &dir, h, &mut d);
-                        handle_source(pair, &dir, o, None, cargo, now, stable_secs, &mut unseen, &mut stack, &mut d);
+                        handle_source(pair, &dir, o, None, &carried, now, stable_secs, &mut unseen, &mut stack, &mut d);
                     } else {
                         if !h.is_dir {
                             d.destination_files += 1;
                         }
-                        handle_source(pair, &dir, o, Some(h), cargo, now, stable_secs, &mut unseen, &mut stack, &mut d);
+                        handle_source(pair, &dir, o, Some(h), &carried, now, stable_secs, &mut unseen, &mut stack, &mut d);
                     }
                     i += 1;
                     j += 1;
@@ -225,7 +226,7 @@ fn handle_source(
     dir: &str,
     o: &Entry,
     destination: Option<&Entry>,
-    cargo: &CargoManifest,
+    carried: &HashSet<(String, String, u64, i64)>,
     now: i64,
     stable_secs: i64,
     unseen: &mut HashMap<String, &str>,
@@ -243,7 +244,7 @@ fn handle_source(
         Some(h) => h.size != o.size || !same_mtime(h.mtime, o.mtime),
         None => true,
     };
-    if differs && !cargo.has(pair, &rel, o.size, o.mtime) {
+    if differs && !carried.contains(&(pair.to_string(), fold(&rel), o.size, o.mtime)) {
         if now.saturating_sub(o.mtime) >= stable_secs.saturating_mul(TICKS_PER_SEC) {
             d.carry.push(Candidate { pair: pair.to_string(), rel, size: o.size, mtime: o.mtime });
         } else {

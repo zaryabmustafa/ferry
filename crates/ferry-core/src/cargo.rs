@@ -1,5 +1,6 @@
 use crate::entry::fold;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -99,8 +100,12 @@ pub struct CargoManifest {
 }
 
 impl CargoManifest {
+    /// Every carried (pair, folded rel, size, mtime): many `has` lookups at once without a scan each.
+    pub fn versions(&self) -> HashSet<(String, String, u64, i64)> {
+        self.items.iter().map(|i| (i.pair.clone(), fold(&i.rel), i.size, i.mtime)).collect()
+    }
+
     /// True if this exact version (size + mtime; rel is case-insensitive like SMB) of the file is already carried.
-    // ponytail: linear scan; index by (pair, rel) if the manifest grows to many thousands.
     pub fn has(&self, pair: &str, rel: &str, size: u64, mtime: i64) -> bool {
         self.items
             .iter()

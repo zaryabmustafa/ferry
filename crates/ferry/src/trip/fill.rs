@@ -8,11 +8,19 @@ use ferry_core::diff::{diff_pair, Candidate, DestinationView};
 use ferry_core::entry::{fold, long_path};
 use ferry_core::load::{budget, pick_load};
 use ferry_core::snapshot::SnapshotReader;
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::os::windows::fs::MetadataExt;
 use std::path::Path;
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
+
+/// Files this big record a resumable `partial` before their copy starts; smaller ones just start
+/// again, which saves a cargo-list write per file when there are many of them.
+const RESUME_FROM: u64 = 1 << 20;
+/// Between files, the cargo list is written at least this often (and after every big file).
+const SAVE_EVERY: Duration = Duration::from_secs(2);
 
 /// Spec 4.4: a fill with no remote address for the destination and no usable destination snapshot.
 pub fn visit_destination(destination: &str) -> String {
@@ -175,12 +183,15 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
     for c in &load.oversize {
         emit(Event::Oversize { pair: c.pair.clone(), rel: c.rel.clone(), size: c.size });
     }
+    // (pair, folded rel) of every carried file, so replacing an older version needs no scan.
+    let mut names: HashSet<(String, String)> = manifest.items.iter().map(|i| (i.pair.clone(), fold(&i.rel))).collect();
+    let mut saved = Instant::now();
     for c in &load.picked {
         if !ctx.go_on() {
             break;
         }
         let Some(roots) = ctx.pairs.iter().find(|r| r.id == c.pair) else { continue };
-        match carry(ctx, &roots.source.join(&c.rel), c, &mut manifest, emit) {
+        match carry(ctx, &roots.source.join(&c.rel), c, &mut manifest, &mut names, &mut saved, emit) {
             Ok(true) => {
                 report.carried += 1;
                 report.carried_bytes += c.size;
@@ -192,9 +203,12 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
         }
     }
 
+    manifest.save(ctx.manifest_path)?;
+
     // What is still not on the laptop (or not stable yet) holds that pair's deletes.
+    let carried = manifest.versions();
     for (carry, (pair, unstable)) in carries.iter().zip(&diffed) {
-        let left: Vec<&Candidate> = carry.iter().filter(|c| !manifest.has(&c.pair, &c.rel, c.size, c.mtime)).collect();
+        let left: Vec<&Candidate> = carry.iter().filter(|c| !carried.contains(&(c.pair.clone(), fold(&c.rel), c.size, c.mtime))).collect();
         report.outstanding_bytes += left.iter().map(|c| c.size).sum::<u64>();
         if let Some(q) = queue.pairs.get_mut(*pair) {
             q.outstanding = left.len() as u64 + unstable;
@@ -214,12 +228,15 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
 
 /// Copy one candidate into cargo. `Ok(false)`: it changed at the source during the copy and
 /// was dropped. An error under cancel keeps the part and `partial` for resume; any other
-/// outcome removes the part (best effort) and clears `partial`.
+/// outcome removes the part (best effort) and clears `partial`. The cargo list is written after a
+/// big file or `SAVE_EVERY`; the fill writes it once more at the end.
 fn carry(
     ctx: &TripCtx,
     src: &Path,
     c: &Candidate,
     manifest: &mut CargoManifest,
+    names: &mut HashSet<(String, String)>,
+    saved: &mut Instant,
     emit: &mut dyn FnMut(Event),
 ) -> io::Result<bool> {
     let dst = ctx.cargo_dir.join(&c.pair).join(&c.rel);
@@ -230,8 +247,11 @@ fn carry(
             remove(&part_of(&ctx.cargo_dir.join(&old.pair).join(&old.rel)))?;
         }
         remove(&part)?;
-        manifest.partial = Some(Partial { pair: c.pair.clone(), rel: c.rel.clone(), size: c.size, mtime: c.mtime });
-        manifest.save(ctx.manifest_path)?;
+        if c.size >= RESUME_FROM {
+            manifest.partial = Some(Partial { pair: c.pair.clone(), rel: c.rel.clone(), size: c.size, mtime: c.mtime });
+            manifest.save(ctx.manifest_path)?;
+            *saved = Instant::now();
+        }
     }
 
     let r = copy_one(ctx, src, &part, &dst, c, emit);
@@ -244,10 +264,15 @@ fn carry(
     manifest.partial = None;
     if let Ok(Some(hash)) = r {
         // Replaces any older version of this file already carried.
-        manifest.remove(&c.pair, &c.rel);
+        if !names.insert((c.pair.clone(), fold(&c.rel))) {
+            manifest.remove(&c.pair, &c.rel);
+        }
         manifest.items.push(CargoItem { pair: c.pair.clone(), rel: c.rel.clone(), size: c.size, mtime: c.mtime, hash });
     }
-    manifest.save(ctx.manifest_path)?;
+    if c.size >= RESUME_FROM || saved.elapsed() >= SAVE_EVERY {
+        manifest.save(ctx.manifest_path)?;
+        *saved = Instant::now();
+    }
     r.map(|h| h.is_some())
 }
 

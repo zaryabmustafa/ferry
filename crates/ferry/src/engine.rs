@@ -168,6 +168,11 @@ pub fn run() -> i32 {
         log.line(&format!("network change watch failed: {e}"));
     }
     let mut engine = Engine::new(hwnd, waker, paths, log);
+    // A fresh install can do nothing until it is set up, so it opens setup instead of waiting
+    // in the tray to be found.
+    if engine.cfg.is_blank() {
+        engine.spawn_ui("--setup");
+    }
     tray::run(move |ev| match ev {
         Ev::Wake => {
             while let Ok(i) = rx.try_recv() {
@@ -1314,11 +1319,13 @@ fn test_server(srv: &Server, path: Option<&str>) -> Result<(), String> {
     } else {
         Err(io::Error::other("no answer on port 445"))
     };
+    // Each part ends in one full stop, whether or not its error already did.
+    let end = |e: io::Error| format!("{}.", e.to_string().trim_end_matches('.'));
     lan.or_else(|lan| {
         if srv.remote_host.is_empty() {
-            return Err(format!("LAN: {lan}."));
+            return Err(format!("LAN: {}", end(lan)));
         }
-        attempt(&srv.remote_host, path.and_then(|p| srv.remote_root(p))).map_err(|remote| format!("LAN: {lan}. Remote address: {remote}."))
+        attempt(&srv.remote_host, path.and_then(|p| srv.remote_root(p))).map_err(|remote| format!("LAN: {} Remote address: {}", end(lan), end(remote)))
     })
 }
 

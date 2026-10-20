@@ -19,6 +19,13 @@ pub struct Config {
     pub options: Options,
 }
 
+impl Config {
+    /// Nothing set up yet: no servers and no folders (a fresh install).
+    pub fn is_blank(&self) -> bool {
+        self.source.lan_host.is_empty() && self.destination.lan_host.is_empty() && self.pairs.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Server {

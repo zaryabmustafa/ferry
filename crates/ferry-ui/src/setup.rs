@@ -166,11 +166,6 @@ fn cargo_move_ok(old: &std::path::Path, new: &std::path::Path, carried: usize, n
     Ok(())
 }
 
-/// No servers and no folders yet: show the first run.
-fn is_blank(c: &Config) -> bool {
-    c.source.lan_host.is_empty() && c.destination.lan_host.is_empty() && c.pairs.is_empty()
-}
-
 // ---------- engine requests ----------
 
 /// The engine's answer, with its errors (and "not running") as text.
@@ -467,7 +462,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
     g.set_destination_nets(st(|s| s.destination_nets.clone()).into());
     match load() {
         Ok(cfg) => {
-            g.set_first_run(is_blank(&cfg));
+            g.set_first_run(cfg.is_blank());
             show_servers(&g, &cfg);
             show_settings(&g, &cfg);
             st(|s| s.cfg = cfg);

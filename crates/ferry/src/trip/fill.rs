@@ -24,7 +24,7 @@ const SAVE_EVERY: Duration = Duration::from_secs(2);
 
 /// Spec 4.4: a fill with no remote address for the destination and no usable destination snapshot.
 pub fn visit_destination(destination: &str) -> String {
-    format!("Visit {destination} once so Ferry can record what's there.")
+    format!("Visit {destination} once so Ferry can record what's there. If it's empty, say so under Locations.")
 }
 
 /// `rel` is definitely not at the source: not found, or under a name that is now a file.
@@ -858,7 +858,7 @@ mod tests {
         assert_eq!(r.carried, 0);
         assert!(env.manifest().items.is_empty());
         let errors: Vec<_> = ev.iter().filter(|e| matches!(e, Event::Error { .. })).collect();
-        assert_eq!(errors, [&Event::Error { pair: String::new(), msg: "Visit Lake house once so Ferry can record what's there.".into() }]);
+        assert_eq!(errors, [&Event::Error { pair: String::new(), msg: "Visit Lake house once so Ferry can record what's there. If it's empty, say so under Locations.".into() }]);
         assert_eq!(env.queue().pairs["p"].paths, ["x.zip"], "a skipped pair's queue is left alone");
     }
 
@@ -889,7 +889,7 @@ mod tests {
         fs::write(env.snapshots().join("p.snap"), b"ferry-snapshot 1\nD \nF 1 2").unwrap();
         let (r, ev) = env.fill();
         assert_eq!(r.carried, 0, "not an empty home");
-        assert!(ev.contains(&Event::Error { pair: String::new(), msg: "Visit Lake house once so Ferry can record what's there.".into() }));
+        assert!(ev.contains(&Event::Error { pair: String::new(), msg: "Visit Lake house once so Ferry can record what's there. If it's empty, say so under Locations.".into() }));
         assert!(ev.iter().any(|e| matches!(e, Event::Info { pair, msg } if pair == "p" && msg.contains("set aside"))), "{ev:?}");
         assert!(!env.snapshots().join("p.snap").exists());
         let aside = fs::read_dir(env.snapshots()).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with("p.snap.corrupt-")).count();

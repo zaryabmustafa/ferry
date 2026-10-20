@@ -483,6 +483,26 @@ export component FoldersPage inherits Page {
 
 // ---------- Locations ----------
 
+// Spec 4.4: without remote addresses Ferry starts after one visit to the destination, unless the
+// user says it is empty. On the first run's network step and on the destination's tab.
+export component DestinationEmptyCard inherits VerticalLayout {
+    spacing: 8px;
+    Card {
+        CardRow {
+            title: S.destination-place + " is empty right now";
+            body: S.destination-empty
+                ? "Ferry starts carrying at " + S.source-place + " right away."
+                : "Ferry starts after one visit to " + S.destination-place + ", where it records what's there.";
+            Toggle {
+                label: S.destination-place + " is empty right now";
+                checked: S.destination-empty;
+                toggled => { S.set-destination-empty(!S.destination-empty); }
+            }
+        }
+    }
+    if S.destination-empty-note.text != "": NoteView { note: S.destination-empty-note; }
+}
+
 export component ServerCard inherits VerticalLayout {
     in property <int> side;
     in property <string> title;
@@ -746,6 +766,8 @@ export component LocationsPage inherits Page {
         user <=> S.destination-user;
         pass <=> S.destination-pass;
     }
+    if S.locations-side == 1 && S.sneakernet: SectionLabel { text: "FIRST TRIP"; }
+    if S.locations-side == 1 && S.sneakernet: DestinationEmptyCard { }
 }
 
 // ---------- Activity ----------

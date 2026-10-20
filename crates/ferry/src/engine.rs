@@ -1922,7 +1922,7 @@ mod tests {
         let msg = format!("{}access denied (os error 5)", crate::trip::record_failed("Lake house"));
         assert_eq!(error_attention("docs", &msg, "HQ", "Lake house").unwrap(), "Ferry couldn't record what's on Lake house: access denied (os error 5)");
         let visit = crate::trip::fill::visit_destination("Lake house");
-        assert_eq!(visit, "Visit Lake house once so Ferry can record what's there.");
+        assert_eq!(visit, "Visit Lake house once so Ferry can record what's there. If it's empty, say so under Locations.");
         assert_eq!(error_attention("", &visit, "HQ", "Lake house").as_deref(), Some(visit.as_str()));
     }
 

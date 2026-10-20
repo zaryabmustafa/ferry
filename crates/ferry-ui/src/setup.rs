@@ -476,8 +476,13 @@ pub fn run() -> Result<(), slint::PlatformError> {
         Err(e) => g.set_load_note(problem(format!("{e}. Fix or delete the file, then open this window again. Nothing here can be saved until then."))),
     }
     wire(&ui);
-    // Debug aid for screenshots: open on a page (0 Status ... 4 Settings), or "edit" for the first folder.
+    // Debug aid for screenshots: open on a page (0 Status ... 4 Settings), "edit" for the first
+    // folder, or "destination" for the destination's Locations tab.
     match std::env::var("FERRY_PAGE").ok().filter(|_| cfg!(debug_assertions)).as_deref() {
+        Some("destination") => {
+            go(&ui, 2);
+            g.set_locations_side(1);
+        }
         Some("update") => {
             go(&ui, 4);
             check_update(&ui);
@@ -632,12 +637,6 @@ fn to_step(ui: &Setup, step: i32) {
         open_pair(ui, added);
         // The first run shows the form itself; the Folders page stays on its list.
         g.set_editing(false);
-    }
-    if step == 2 {
-        let (offline, empty) =
-            st(|s| (s.cfg.source.remote_host.is_empty() && s.cfg.destination.remote_host.is_empty(), s.cfg.options.destination_starts_empty));
-        g.set_sneakernet(offline);
-        g.set_destination_empty(empty);
     }
     if step == 4 {
         g.set_closing(st(|s| closing(s.remembered, &Names::of(&s.cfg))).into());
@@ -802,6 +801,11 @@ fn show_config(ui: &Setup) {
     g.set_source_place(n.src.into());
     g.set_destination_place(n.dest.into());
     g.set_pairs_on(st(|s| s.cfg.pairs.iter().filter(|p| p.enabled).count()) as i32);
+    // Without remote addresses the destination is only known from a visit; the first run and
+    // the destination's Locations tab both offer to skip that visit when it is empty.
+    let (offline, empty) = st(|s| (s.cfg.source.remote_host.is_empty() && s.cfg.destination.remote_host.is_empty(), s.cfg.options.destination_starts_empty));
+    g.set_sneakernet(offline);
+    g.set_destination_empty(empty);
 }
 
 /// Replace a list's rows, in place when the count is the same, so keyboard focus stays in it

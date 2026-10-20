@@ -8,7 +8,8 @@ use windows::Win32::NetworkManagement::WNet::{
     WNetAddConnection2W, NET_CONNECT_FLAGS, NETRESOURCEW, RESOURCETYPE_ANY, RESOURCETYPE_DISK,
 };
 use windows::Win32::Security::Credentials::{
-    CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC,
+    CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_DOMAIN_PASSWORD,
+    CRED_TYPE_GENERIC,
 };
 
 fn wide(s: &str) -> Vec<u16> {
@@ -91,6 +92,23 @@ pub fn signing_required() -> bool {
     r.is_ok() && v == 1
 }
 
+/// The user of Windows' own saved sign-in for `host` (Credential Manager > Windows Credentials),
+/// which File Explorer and mapped drives use. Windows never hands out its password.
+fn windows_saved_user(host: &str) -> Option<String> {
+    let t = wide(host);
+    let mut p: *mut CREDENTIALW = std::ptr::null_mut();
+    unsafe { CredReadW(PCWSTR(t.as_ptr()), CRED_TYPE_DOMAIN_PASSWORD, None, &mut p) }.ok()?;
+    let user = unsafe { (*p).UserName.to_string().unwrap_or_default() };
+    unsafe { CredFree(p.cast()) };
+    Some(user)
+}
+
+/// The same account on one server: "nas\alice", ".\Alice" and "alice" all name it.
+fn same_user(a: &str, b: &str) -> bool {
+    let short = |u: &str| u.rsplit('\\').next().unwrap_or(u).to_string();
+    !a.is_empty() && short(a).eq_ignore_ascii_case(&short(b))
+}
+
 /// Open an SMB session to `\\host\share` (no drive letter) with the credential saved under `target`.
 pub fn connect(host: &str, share: &str, target: &str) -> io::Result<()> {
     let t = wide(target);
@@ -119,12 +137,23 @@ pub fn connect(host: &str, share: &str, target: &str) -> io::Result<()> {
     wipe(&mut pw);
     match rc {
         r if r == NO_ERROR || r == ERROR_ALREADY_ASSIGNED => Ok(()),
-        // Windows keeps one sign-in per server: another account's session (File Explorer, a mapped
-        // drive) would be used instead of this one, so a test would prove nothing and a trip would
-        // copy as someone else.
-        r if r == ERROR_SESSION_CREDENTIAL_CONFLICT => Err(io::Error::other(format!(
-            r"Windows is already signed in to \\{host} as another user, for example in File Explorer. Ferry won't use that sign-in: disconnect it (net use \\{host} /delete), then try again."
-        ))),
+        // Windows keeps one sign-in per server, and a session it opened with its own saved sign-in
+        // (File Explorer, mapped drives) conflicts with Ferry's even for the same account. When that
+        // saved sign-in is Ferry's user, join it; another account's session is refused, since a test
+        // would prove nothing and a trip would copy as someone else.
+        r if r == ERROR_SESSION_CREDENTIAL_CONFLICT => {
+            let saved = windows_saved_user(host);
+            if saved.as_deref().is_some_and(|s| same_user(s, &user)) {
+                let rc = unsafe { WNetAddConnection2W(&nr, PCWSTR::null(), PCWSTR::null(), NET_CONNECT_FLAGS(0)) };
+                if rc == NO_ERROR || rc == ERROR_ALREADY_ASSIGNED {
+                    return Ok(());
+                }
+            }
+            let who = saved.map_or_else(|| "another user".to_string(), |s| format!("{s} (its saved sign-in in Credential Manager)"));
+            Err(io::Error::other(format!(
+                r"Windows is already signed in to \\{host} as {who}, for example for File Explorer or mapped drives, and Ferry signs in as {user}. Use the same user name in both, or disconnect it (net use \\{host} /delete) and try again."
+            )))
+        }
         // Signed in, but this account may not use the share: keep the OS code so callers can say so.
         r if r == ERROR_ACCESS_DENIED => Err(io::Error::from_raw_os_error(r.0 as i32)),
         r if r == ERROR_LOGON_FAILURE => Err(io::Error::new(
@@ -195,6 +224,15 @@ mod tests {
         for t in ["git:https://github.com", "ferry/x", "Ferry/", ""] {
             assert_eq!(save_credential(t, "alice", "pw").unwrap_err().kind(), std::io::ErrorKind::InvalidInput, "{t}");
         }
+    }
+
+    #[test]
+    fn same_user_ignores_the_server_part_and_case() {
+        assert!(same_user("zaryabmustafa", "zaryabmustafa"));
+        assert!(same_user(r"192.168.2.101\ZaryabMustafa", "zaryabmustafa"));
+        assert!(same_user(r".\alice", r"nas\Alice"));
+        assert!(!same_user("bob", "alice"));
+        assert!(!same_user("", ""));
     }
 
     #[test]

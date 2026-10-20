@@ -377,9 +377,10 @@ export component Manage inherits Rectangle {
                 if e.text == Key.DownArrow { self.cur = root.step(self.cur, 1); Focus.keyboard = true; return accept; }
                 if e.text == Key.UpArrow { self.cur = root.step(self.cur, -1); Focus.keyboard = true; return accept; }
                 if e.text == Key.Return || e.text == " " {
+                    // Activate before closing: closing drops this popup, and with it the handler.
                     if self.cur >= 0 && self.cur < root.items.length && root.items[self.cur].enabled {
-                        menu.close();
                         root.activated(self.cur);
+                        menu.close();
                     }
                     return accept;
                 }
@@ -395,7 +396,7 @@ export component Manage inherits Rectangle {
                     MenuRow {
                         item: it;
                         current: keys.cur == i;
-                        clicked => { menu.close(); root.activated(i); }
+                        clicked => { root.activated(i); menu.close(); }
                     }
                 }
             }

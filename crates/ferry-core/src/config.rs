@@ -76,6 +76,9 @@ pub struct Pair {
     pub destination_path: String,
     pub enabled: bool,
     pub allow_empty: bool,
+    /// Folder names skipped at any depth ("_repo"): never listed, carried or deleted at the
+    /// destination, on either side.
+    pub skip: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -320,7 +323,7 @@ home_starts_empty = true
         c.source.remote_host = "office-nas".into();
         c.destination.name = "Home".into();
         c.destination.lan_host = "198.51.100.100".into();
-        c.pairs.push(Pair { id: "r".into(), source_path: "repositories".into(), destination_path: "backups/repos".into(), enabled: true, allow_empty: false });
+        c.pairs.push(Pair { id: "r".into(), source_path: "repositories".into(), destination_path: "backups/repos".into(), enabled: true, allow_empty: false, skip: vec![] });
         c.options.destination_starts_empty = true;
         save(&p, &c).unwrap();
         let text = fs::read_to_string(&p).unwrap();

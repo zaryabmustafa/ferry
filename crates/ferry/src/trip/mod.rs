@@ -26,6 +26,8 @@ pub struct PairRoots {
     pub destination: PathBuf,
     pub destination_meta: Option<PathBuf>,
     pub allow_empty: bool,
+    /// Folder names left out on both sides (`Pair::skip`).
+    pub skip: Vec<String>,
 }
 
 pub struct TripCtx<'a> {

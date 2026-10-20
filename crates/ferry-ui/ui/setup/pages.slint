@@ -347,6 +347,19 @@ export component FolderForm inherits VerticalLayout {
                     accepted => { S.save-pair(); }
                 }
             }
+            FormRow {
+                title: "Skip folders named (optional)";
+                body: "Folders with these names, at any depth, are neither carried nor deleted at " + S.destination-place + ". Separate names with commas.";
+                Field {
+                    name: "Skip folders named";
+                    hint: "Optional. Folders with these names are neither carried nor deleted.";
+                    show-hint: false;
+                    max-width: 420px;
+                    placeholder: "For example, _repo, node_modules";
+                    text <=> S.f-skip;
+                    accepted => { S.save-pair(); }
+                }
+            }
         }
     }
     SectionLabel { text: "SAFETY"; }
@@ -430,7 +443,8 @@ export component FoldersPage inherits Page {
                                 if r.name == p.id && r.kind == 0 && r.detail != "": Chip { text: r.detail; }
                                 if r.name == p.id && r.kind == 3: Chip { tone: 2; icon: "\u{E7BA}"; text: r.detail; }
                             }
-                            if p.allow-empty: Chip { text: "Allowed to be empty"; }
+                            if p.allow-empty: HorizontalLayout { padding-right: p.skip != "" ? 6px : 0px; Chip { text: "Allowed to be empty"; } }
+                            if p.skip != "": Chip { text: "Skips " + p.skip; }
                         }
                     }
                     VerticalLayout {

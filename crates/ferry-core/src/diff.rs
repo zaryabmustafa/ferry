@@ -119,11 +119,13 @@ pub fn diff_pair(
     now: i64,
     stable_secs: i64,
 ) -> io::Result<PairDiff> {
-    diff_pair_counting(pair, source_root, destination, cargo, now, stable_secs, &mut |_| {})
+    diff_pair_counting(pair, source_root, destination, cargo, now, stable_secs, &[], &mut |_| {})
 }
 
-/// `diff_pair`, calling `listed` with the source files seen so far after each directory, so a
-/// long listing can show it is moving.
+/// `diff_pair`, leaving out folders named in `skip` (at any depth, on both sides, so nothing under
+/// them is carried or deleted), and calling `listed` with the source files seen so far after each
+/// directory, so a long listing can show it is moving.
+#[allow(clippy::too_many_arguments)]
 pub fn diff_pair_counting(
     pair: &str,
     source_root: &Path,
@@ -131,8 +133,11 @@ pub fn diff_pair_counting(
     cargo: &CargoManifest,
     now: i64,
     stable_secs: i64,
+    skip: &[String],
     listed: &mut dyn FnMut(u64),
 ) -> io::Result<PairDiff> {
+    let skip: Vec<String> = skip.iter().map(|s| fold(s)).collect();
+    let skipped = |e: &Entry| e.is_dir && skip.contains(&fold(&e.name));
     let mut d = PairDiff { complete: true, ..Default::default() };
     let carried = cargo.versions();
     // Cargo rels not yet seen at the source; leftovers are gone.
@@ -153,7 +158,8 @@ pub fn diff_pair_counting(
                 continue;
             }
         };
-        let destination_list: Vec<Entry> = if !destination_exists {
+        source.retain(|e| !skipped(e));
+        let mut destination_list: Vec<Entry> = if !destination_exists {
             vec![]
         } else {
             match destination.list(&dir) {
@@ -167,6 +173,7 @@ pub fn diff_pair_counting(
                 }
             }
         };
+        destination_list.retain(|e| !skipped(e));
 
         // Names equal but for case sort next to each other; a Windows folder can hold only one.
         let clashing = clashing_names(&source);
@@ -317,13 +324,28 @@ mod tests {
     }
 
     #[test]
+    fn skipped_folders_are_neither_carried_nor_deleted_at_any_depth() {
+        let (o, h, old) = setup();
+        put(o.path(), r"org\repo\2023.tar.gz", 1, old);
+        put(o.path(), r"org\repo\_repo\src\main.rs", 1, old);
+        put(o.path(), r"org\repo\my_repo_notes.txt", 1, old);
+        put(h.path(), r"org\repo\_REPO\old.rs", 1, old);
+        let skip = ["_repo".to_string()];
+        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &skip, &mut |_| {})
+            .unwrap();
+        assert_eq!(rels(&d.carry), [r"org\repo\2023.tar.gz", r"org\repo\my_repo_notes.txt"]);
+        assert!(d.deletes.is_empty(), "nothing under a skipped folder is deleted: {:?}", d.deletes);
+        assert_eq!(d.source_files, 2);
+    }
+
+    #[test]
     fn counting_reports_files_seen_after_each_directory() {
         let (o, h, old) = setup();
         put(o.path(), "a.txt", 1, old);
         put(o.path(), r"sub\b.txt", 1, old);
         put(o.path(), r"sub\c.txt", 1, old);
         let mut seen = vec![];
-        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &mut |n| seen.push(n))
+        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &[], &mut |n| seen.push(n))
             .unwrap();
         assert_eq!(seen.len(), 2, "once per directory: {seen:?}");
         assert_eq!(seen.last(), Some(&d.source_files));

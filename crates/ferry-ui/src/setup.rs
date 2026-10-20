@@ -763,7 +763,13 @@ fn show_config(ui: &Setup) {
             .cfg
             .pairs
             .iter()
-            .map(|p| PairRow { id: p.id.as_str().into(), paths: pair_paths(&s.cfg, p).into(), enabled: p.enabled, allow_empty: p.allow_empty })
+            .map(|p| PairRow {
+                id: p.id.as_str().into(),
+                paths: pair_paths(&s.cfg, p).into(),
+                enabled: p.enabled,
+                allow_empty: p.allow_empty,
+                skip: p.skip.join(", ").into(),
+            })
             .collect();
         let nets = |side: Side| -> Vec<NetRow> {
             server(&s.cfg, side)
@@ -835,9 +841,24 @@ fn open_pair(ui: &Setup, p: Option<Pair>) {
     g.set_f_source(p.source_path.into());
     g.set_f_destination(if p.destination_path == g.get_f_source().as_str() { String::new() } else { p.destination_path }.into());
     g.set_f_allow_empty(p.allow_empty);
+    g.set_f_skip(p.skip.join(", ").into());
     g.set_f_id(p.id.into());
     g.set_f_note(Note::default());
     g.set_editing(true);
+}
+
+/// "_repo, node_modules" as folder names: trimmed, empties and repeats (ignoring case) dropped.
+fn skip_names(text: &str) -> Result<Vec<String>, String> {
+    let mut names: Vec<String> = vec![];
+    for n in text.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+        if n.contains(['\\', '/']) || n == "." || n == ".." {
+            return Err(format!("Skip folders named: enter folder names, not paths ({n})."));
+        }
+        if !names.iter().any(|m| m.eq_ignore_ascii_case(n)) {
+            names.push(n.to_string());
+        }
+    }
+    Ok(names)
 }
 
 fn save_pair(ui: &Setup) {
@@ -847,7 +868,7 @@ fn save_pair(ui: &Setup) {
         let destination = if destination.trim().is_empty() { source.clone() } else { share_path(&destination)? };
         Ok((source, destination))
     });
-    let (source, destination) = match paths {
+    let (source, destination, skip) = match paths.and_then(|(s, d)| Ok((s, d, skip_names(&g.get_f_skip())?))) {
         Ok(p) => p,
         Err(e) => return g.set_f_note(problem(e)),
     };
@@ -868,12 +889,12 @@ fn save_pair(ui: &Setup) {
             Some(id) => {
                 let p = c.pairs.iter_mut().find(|p| &p.id == id).ok_or("This folder was removed in the meantime.")?;
                 p.id = edited_id(p, &source, &destination, &taken);
-                (p.source_path, p.destination_path, p.allow_empty) = (source, destination, allow_empty);
+                (p.source_path, p.destination_path, p.allow_empty, p.skip) = (source, destination, allow_empty, skip);
                 p.id.clone()
             }
             None => {
                 let id = pair_id(&source, &taken);
-                c.pairs.push(Pair { id: id.clone(), source_path: source, destination_path: destination, enabled: true, allow_empty });
+                c.pairs.push(Pair { id: id.clone(), source_path: source, destination_path: destination, enabled: true, allow_empty, skip });
                 id
             }
         };
@@ -1665,6 +1686,15 @@ mod tests {
         assert_eq!(host_field(""), Ok(String::new()));
         for bad in ["office nas", "office/nas", "\\\\office\\share"] {
             assert!(host_field(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn skip_names_are_trimmed_folder_names() {
+        assert_eq!(skip_names(" _repo, node_modules ,, _REPO ").unwrap(), ["_repo", "node_modules"]);
+        assert!(skip_names("").unwrap().is_empty());
+        for bad in [r"a\_repo", "a/_repo", ".."] {
+            assert!(skip_names(bad).is_err(), "{bad:?} should be rejected");
         }
     }
 }

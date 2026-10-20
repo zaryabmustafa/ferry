@@ -100,7 +100,7 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
                 emit(Event::Step(format!("{comparing}: {n} files so far")));
             }
         };
-        let mut d = match diff_pair_counting(pair, &roots.source, destination, &manifest, ctx.now, stable_secs, &mut listed) {
+        let mut d = match diff_pair_counting(pair, &roots.source, destination, &manifest, ctx.now, stable_secs, &roots.skip, &mut listed) {
             Ok(d) => d,
             Err(e) => {
                 emit(err(format!("listing failed: {e}")));
@@ -444,6 +444,7 @@ mod tests {
                     destination: self.destination.path().into(),
                     destination_meta: (!self.sneakernet).then(|| self.destination_meta.clone().unwrap_or_else(|| self.destination.path().into())),
                     allow_empty: self.allow_empty,
+                    skip: vec![],
                 })
                 .collect();
             let (cargo, mp, dp, snaps) = (self.cargo(), self.manifest_path(), self.deletes_path(), self.snapshots());

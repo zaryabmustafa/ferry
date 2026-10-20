@@ -414,6 +414,7 @@ fn trip(
                 destination: destination_lan,
                 destination_meta: destination.remote_root(&p.destination_path),
                 allow_empty: p.allow_empty,
+                skip: p.skip.clone(),
             }
         })
         .collect();

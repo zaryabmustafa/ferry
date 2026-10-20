@@ -24,6 +24,7 @@ Ferry mirrors the source to the destination, including deletions, so its rules l
 
 ## Folders and names
 
+- **Skipped folders are left alone on both sides.** A folder pair can skip folders by name ("Skip folders named", for example `_repo`), at any depth. Ferry doesn't list, carry or delete anything inside them, at the source or at the destination, so turning a skip on never deletes the destination's copy. Files already carried from a folder that is now skipped are dropped from the laptop.
 - **Folders can't overlap.** Two folder pairs can't share a destination or have one destination inside the other, because each would delete the other's files. Setup refuses it, and a trip skips such pairs if `config.toml` was edited by hand.
 - **Names compare the way Windows compares them.** Ferry folds case like NTFS does, so `ß`, `ς` or the Kelvin sign don't make two names look different. Two source names that differ only in case (possible on a Linux server) can't both live in a Windows folder: Ferry carries neither and Activity names them.
 - **Odd names from a server are refused.** A listing that contains a name with a path separator, a drive or stream colon, `..` or control characters is treated as unreadable, so nothing is copied to or deleted from outside the folder because of it.

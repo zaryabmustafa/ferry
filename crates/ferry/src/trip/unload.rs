@@ -63,6 +63,8 @@ pub fn run_unload(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<Unlo
         emit(Event::Step(format!("Recording what's in {} at {}", roots.id, ctx.destination_name)));
         let path = snap_path(ctx.snapshots, &roots.id);
         let first = !Snapshot::recorded_before(&path);
+        // ponytail: records skipped folders too (the diff ignores them); pass `roots.skip` to
+        // Snapshot::record if a destination's skipped folders make recording slow.
         match fs::create_dir_all(long_path(&roots.destination)).and_then(|()| Snapshot::record(&roots.destination, &path)) {
             Ok(parts) => {
                 report.first_records += u64::from(first);
@@ -425,6 +427,7 @@ mod tests {
                 destination: self.destination.path().into(),
                 destination_meta: (!self.sneakernet).then(|| self.destination.path().into()),
                 allow_empty: false,
+                skip: vec![],
             }];
             let (cargo, mp, dp, snaps) = (self.cargo(), self.manifest_path(), self.deletes_path(), self.laptop.path().join("snapshots"));
             let ctx = TripCtx {

@@ -3,7 +3,7 @@ import { Row, Seg } from "../flyout.slint";
 
 // kind: 0 plain, 1 done, 2 problem, 3 working
 export struct Note { text: string, kind: int }
-export struct PairRow { id: string, paths: string, enabled: bool, allow-empty: bool }
+export struct PairRow { id: string, paths: string, enabled: bool, allow-empty: bool, skip: string }
 export struct Held { id: string, button: string, note: Note }
 export struct Legend { name: string, size: string, tone: int }
 export struct Line { time: string, text: string }
@@ -53,6 +53,8 @@ export global S {
     in-out property <string> f-source;
     in-out property <string> f-destination;
     in-out property <bool> f-allow-empty;
+    // Folder names to skip, as typed: "_repo, node_modules".
+    in-out property <string> f-skip;
     in property <string> f-id;
     in property <Note> f-note;
     in property <Note> folders-note;

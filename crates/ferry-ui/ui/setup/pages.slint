@@ -72,7 +72,10 @@ export component Page inherits VerticalLayout {
         }
         Rectangle { height: 1px; background: Theme.stroke; }
     }
-    ScrollView {
+    // A new view in the same page (a folder's form, say) starts at its top, even after the first
+    // field's focus scrolled it.
+    changed title => { sv.content-y = 0; }
+    sv := ScrollView {
         vertical-stretch: 1;
         content-width: self.visible-width;
         content-height: body.preferred-height;
@@ -215,26 +218,28 @@ export component StatusPage inherits Page {
             padding-left: 16px;
             padding-right: 16px;
             spacing: 14px;
-            VerticalLayout { alignment: center; Prio { n: i + 1; } }
+            VerticalLayout { alignment: start; padding-top: 1px; Prio { n: i + 1; } }
+            // Name, paths, then chips: the same order as the Folders page, and the name never shares
+            // its line with chips that could squeeze it to an ellipsis.
             VerticalLayout {
                 horizontal-stretch: 1;
                 min-width: 0px;
-                alignment: center;
+                alignment: start;
                 spacing: 6px;
-                HorizontalLayout {
-                    spacing: 8px;
+                Text { text: r.name; color: Theme.ink; font-weight: 600; overflow: elide; }
+                if r.paths != "": Caption { text: r.paths; overflow: elide; wrap: no-wrap; }
+                if ((r.kind == 0 || r.kind == 3) && r.right != "") || r.kind == 3 || (r.kind == 0 && r.detail != ""): HorizontalLayout {
+                    spacing: 6px;
                     alignment: start;
-                    Text { text: r.name; color: Theme.ink; font-weight: 600; overflow: elide; vertical-alignment: center; }
                     if (r.kind == 0 || r.kind == 3) && r.right != "": Chip { tone: 3; text: r.right + " on the laptop"; }
                     if r.kind == 3: Chip { tone: 2; icon: "\u{E7BA}"; text: r.detail; }
                     if r.kind == 0 && r.detail != "": Chip { text: r.detail; }
                 }
-                if r.paths != "": Caption { text: r.paths; overflow: elide; wrap: no-wrap; }
             }
             VerticalLayout {
                 horizontal-stretch: 0;
                 min-width: 150px;
-                alignment: center;
+                alignment: start;
                 spacing: 6px;
                 if r.kind == 2: HorizontalLayout {
                     alignment: end;
@@ -299,7 +304,16 @@ component FormRow inherits Rectangle {
 }
 
 export component FolderForm inherits VerticalLayout {
-    init => { source.focus(); }
+    // Focus the first field once laid out: focusing in `init` scrolls the page to where the field
+    // was before layout, which hides the form's top.
+    Timer {
+        interval: 1ms;
+        running: true;
+        triggered => {
+            self.running = false;
+            source.focus();
+        }
+    }
 
     spacing: 8px;
     SectionLabel { text: "PATHS"; }
@@ -375,6 +389,8 @@ export component FoldersPage inherits Page {
 
     if !S.editing: VerticalLayout {
         spacing: 8px;
+        // 12 px down from the tabs, like the section labels that start the other tabbed pages.
+        padding-top: 12px;
         Lead {
             text: "Ferry carries these folders from " + S.source-place + " to " + S.destination-place + ", top first. When the laptop fills up, folders higher up go first.";
         }
@@ -409,7 +425,7 @@ export component FoldersPage inherits Page {
                                 padding-right: r.name == p.id ? 6px : 0px;
                                 if r.name == p.id && r.kind == 2: Chip { tone: 1; icon: "\u{E73E}"; text: "Up to date"; }
                                 if r.name == p.id && r.kind == 1: Chip { text: r.right; }
-                                if r.name == p.id && (r.kind == 0 || r.kind == 3) && r.right != "": Chip { text: r.right + " on the laptop"; }
+                                if r.name == p.id && (r.kind == 0 || r.kind == 3) && r.right != "": Chip { tone: 3; text: r.right + " on the laptop"; }
                                 if r.name == p.id && r.kind == 0 && r.detail != "": Chip { text: r.detail; }
                                 if r.name == p.id && r.kind == 3: Chip { tone: 2; icon: "\u{E7BA}"; text: r.detail; }
                             }
@@ -784,6 +800,7 @@ export component ActivityPage inherits Page {
 
     if S.activity-tab == 0: VerticalLayout {
         spacing: 8px;
+        padding-top: 12px;
         Lead {
             text: "Ferry holds deletes at " + S.destination-place + " when more files vanish at " + S.source-place + " than your limits allow, in case a share went missing.";
         }
@@ -847,10 +864,12 @@ export component ActivityPage inherits Page {
 component GbRow inherits CardRow {
     in property <string> name;
     in-out property <string> value;
+    // Fixed width, so every row's control ends at the card's right padding like the switches do.
     HorizontalLayout {
+        horizontal-stretch: 0;
         spacing: 8px;
         Field { width: 96px; name: root.name + ", in GB"; text <=> root.value; }
-        Text { text: "GB"; color: Theme.ink; vertical-alignment: center; }
+        Text { text: "GB"; width: self.preferred-width; color: Theme.ink; vertical-alignment: center; }
     }
 }
 
@@ -870,7 +889,7 @@ export component SettingsPage inherits Page {
                 padding-top: 12px;
                 padding-bottom: 12px;
                 spacing: 16px;
-                VerticalLayout { alignment: center; Icon { text: "\u{E896}"; font-size: 20px; width: 20px; color: Theme.ink; } }
+                // No icon: its text lines up with the switch row under it.
                 VerticalLayout {
                     horizontal-stretch: 1;
                     alignment: center;

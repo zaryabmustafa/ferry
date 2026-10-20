@@ -94,14 +94,18 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
         let comparing = format!("Comparing {pair} at {} with {}", ctx.source_name, ctx.destination_name);
         emit(Event::Step(comparing.clone()));
         let mut said = Instant::now();
+        // A pause or a lost path stops the listing too, not only the copies after it.
         let mut listed = |n: u64| {
             if said.elapsed() >= Duration::from_millis(500) {
                 said = Instant::now();
                 emit(Event::Step(format!("{comparing}: {n} files so far")));
+                return ctx.go_on();
             }
+            !ctx.cancel.load(Ordering::Relaxed)
         };
         let mut d = match diff_pair_counting(pair, &roots.source, destination, &manifest, ctx.now, stable_secs, &roots.skip, &mut listed) {
             Ok(d) => d,
+            Err(_) if ctx.cancel.load(Ordering::Relaxed) => break,
             Err(e) => {
                 emit(err(format!("listing failed: {e}")));
                 continue;

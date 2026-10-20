@@ -119,12 +119,13 @@ pub fn diff_pair(
     now: i64,
     stable_secs: i64,
 ) -> io::Result<PairDiff> {
-    diff_pair_counting(pair, source_root, destination, cargo, now, stable_secs, &[], &mut |_| {})
+    diff_pair_counting(pair, source_root, destination, cargo, now, stable_secs, &[], &mut |_| true)
 }
 
 /// `diff_pair`, leaving out folders named in `skip` (at any depth, on both sides, so nothing under
 /// them is carried or deleted), and calling `listed` with the source files seen so far after each
-/// directory, so a long listing can show it is moving.
+/// directory, so a long listing can show it is moving. `listed` returning false stops the listing
+/// with `ErrorKind::Interrupted` (a trip that was stopped).
 #[allow(clippy::too_many_arguments)]
 pub fn diff_pair_counting(
     pair: &str,
@@ -134,7 +135,7 @@ pub fn diff_pair_counting(
     now: i64,
     stable_secs: i64,
     skip: &[String],
-    listed: &mut dyn FnMut(u64),
+    listed: &mut dyn FnMut(u64) -> bool,
 ) -> io::Result<PairDiff> {
     let skip: Vec<String> = skip.iter().map(|s| fold(s)).collect();
     let skipped = |e: &Entry| e.is_dir && skip.contains(&fold(&e.name));
@@ -220,7 +221,9 @@ pub fn diff_pair_counting(
                 }
             }
         }
-        listed(d.source_files);
+        if !listed(d.source_files) {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "listing stopped"));
+        }
     }
     d.cargo_gone = unseen.into_values().map(String::from).collect();
     d.cargo_gone.sort();
@@ -331,11 +334,25 @@ mod tests {
         put(o.path(), r"org\repo\my_repo_notes.txt", 1, old);
         put(h.path(), r"org\repo\_REPO\old.rs", 1, old);
         let skip = ["_repo".to_string()];
-        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &skip, &mut |_| {})
+        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &skip, &mut |_| true)
             .unwrap();
         assert_eq!(rels(&d.carry), [r"org\repo\2023.tar.gz", r"org\repo\my_repo_notes.txt"]);
         assert!(d.deletes.is_empty(), "nothing under a skipped folder is deleted: {:?}", d.deletes);
         assert_eq!(d.source_files, 2);
+    }
+
+    #[test]
+    fn a_stop_ends_the_listing() {
+        let (o, h, old) = setup();
+        put(o.path(), r"a\x.txt", 1, old);
+        put(o.path(), r"b\y.txt", 1, old);
+        let mut calls = 0;
+        let r = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &[], &mut |_| {
+            calls += 1;
+            false
+        });
+        assert_eq!(r.unwrap_err().kind(), io::ErrorKind::Interrupted);
+        assert_eq!(calls, 1, "stops after the first directory");
     }
 
     #[test]
@@ -345,7 +362,10 @@ mod tests {
         put(o.path(), r"sub\b.txt", 1, old);
         put(o.path(), r"sub\c.txt", 1, old);
         let mut seen = vec![];
-        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &[], &mut |n| seen.push(n))
+        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &[], &mut |n| {
+            seen.push(n);
+            true
+        })
             .unwrap();
         assert_eq!(seen.len(), 2, "once per directory: {seen:?}");
         assert_eq!(seen.last(), Some(&d.source_files));

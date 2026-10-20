@@ -783,8 +783,16 @@ impl Engine {
     fn reload(&mut self) -> Response {
         match config::load(&self.paths.config) {
             Ok(c) => {
+                let folders_changed = c.pairs != self.cfg.pairs;
                 self.cfg = c;
                 self.log.line("settings reloaded");
+                // A running trip works from the folders it started with: stop it and start again
+                // with the saved ones (a new skip list, say), instead of finishing the old listing.
+                if let Some(cancel) = self.trip.as_ref().filter(|_| folders_changed).map(|t| t.cancel.clone()) {
+                    cancel.store(true, Ordering::Relaxed);
+                    self.log.line("folders changed; the trip starts again with them");
+                    self.trigger();
+                }
                 self.apply_autostart();
                 // A running trip owns the state files; the next trip clears up after it.
                 if self.trip.is_none() {

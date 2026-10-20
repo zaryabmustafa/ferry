@@ -111,6 +111,10 @@ pub struct Status {
     pub trips_behind: Option<u32>,
     pub pairs: Vec<PairStatus>,
     pub attention: Vec<String>,
+    /// What the running trip is doing now ("Comparing docs at Office with Home: 1,200 files so
+    /// far", "Copying docs\a.zip"), so a long listing doesn't look stuck. Empty between trips.
+    #[serde(default)]
+    pub step: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -237,6 +241,7 @@ mod tests {
                 deletes_list: 0,
             }],
             attention: vec!["x".into()],
+            step: "Copying a.zip".into(),
         };
         rt(Response::Status(s));
         rt(Response::Ok);
@@ -305,9 +310,10 @@ mod tests {
         o.remove("remote_ok");
         o.remove("bulk_blocked");
         o.remove("trusting_vpn");
+        o.remove("step");
         o.insert("tailscale_ok".into(), false.into());
         let s: Status = serde_json::from_value(v).unwrap();
         assert!(!s.remote_ok);
-        assert_eq!((s.bulk_blocked, s.trusting_vpn), (None, false));
+        assert_eq!((s.bulk_blocked, s.trusting_vpn, s.step.as_str()), (None, false, ""));
     }
 }

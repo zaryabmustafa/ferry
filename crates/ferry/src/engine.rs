@@ -488,6 +488,7 @@ impl Engine {
     fn trip_event(&mut self, e: Event) {
         let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         match e {
+            Event::Step(s) => self.status.step = s,
             Event::Progress { pair, rel, done, total } => self.progress(pair, rel, done, total),
             Event::Carried { pair, rel, size } => {
                 self.log.line(&format!("carried {rel} ({pair}, {})", mb(size)));
@@ -548,6 +549,8 @@ impl Engine {
     fn progress(&mut self, pair: String, rel: String, done: u64, total: u64) {
         let Some(t) = &mut self.trip else { return };
         if t.cur.0 != pair || t.cur.1 != rel || done < t.cur_done {
+            let verb = if t.kind == Kind::Unload { "Delivering" } else { "Copying" };
+            self.status.step = format!("{verb} {rel}");
             t.cur = (pair, rel);
             t.cur_done = 0;
         }
@@ -572,6 +575,7 @@ impl Engine {
         }
         self.status.rate_bps = 0;
         self.status.eta_secs = None;
+        self.status.step.clear();
         if !matches!(r.report, Report::WrongPlace { .. }) {
             self.status.remote_ok = r.remote_ok;
         }

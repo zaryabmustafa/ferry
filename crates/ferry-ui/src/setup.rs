@@ -656,6 +656,7 @@ fn show_status(ui: &Setup, s: &Status) {
     g.set_status(if blocked_place(s, &n).is_some() { "Not copying".into() } else { status_text(s, &n) }.into());
     // The amount carried is on the meter, so only speed and time left here.
     g.set_detail(detail_text(s, detail_line(0, 0, s.rate_bps, s.eta_secs), &n).into());
+    g.set_doing(s.step.as_str().into());
     g.set_attention(model(s.attention.iter().map(|a| a.as_str().into()).collect()));
     g.set_paused(s.paused_until.is_some());
     g.set_trips(trips_line(s.trips_behind, &n).into());
@@ -696,6 +697,7 @@ fn show_problem(ui: &Setup, p: &Poll) {
     g.set_place_icon("\u{E7BA}".into());
     g.set_status(detail.into());
     g.set_detail("".into());
+    g.set_doing("".into());
     g.set_attention(ModelRc::default());
     g.set_show_meter(false);
     g.set_rows(ModelRc::default());

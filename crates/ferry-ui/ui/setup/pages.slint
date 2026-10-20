@@ -143,6 +143,7 @@ export component StatusPage inherits Page {
                 }
                 if !S.running && S.status != "": Text { text: S.status; color: Theme.ink; wrap: word-wrap; }
                 if S.running && S.detail != "": Text { text: S.detail; color: Theme.muted; wrap: word-wrap; }
+                if S.running && S.doing != "": Caption { text: S.doing; overflow: elide; wrap: no-wrap; }
                 for a in S.attention: Text { text: a; color: Theme.warn; wrap: word-wrap; }
             }
         }

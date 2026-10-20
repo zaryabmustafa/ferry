@@ -60,6 +60,7 @@ pub fn run_unload(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<Unlo
         if !ctx.go_on() {
             break;
         }
+        emit(Event::Step(format!("Recording what's in {} at {}", roots.id, ctx.destination_name)));
         let path = snap_path(ctx.snapshots, &roots.id);
         let first = !Snapshot::recorded_before(&path);
         match fs::create_dir_all(long_path(&roots.destination)).and_then(|()| Snapshot::record(&roots.destination, &path)) {
@@ -259,6 +260,9 @@ fn apply_deletes(ctx: &TripCtx, roots: &PairRoots, paths: &mut Vec<String>, snap
     let mut deleted = 0;
     let mut keep = vec![];
     let mut unknown = 0;
+    if !paths.is_empty() {
+        emit(Event::Step(format!("Deleting {} files in {} at {}", paths.len(), roots.id, ctx.destination_name)));
+    }
     for rel in std::mem::take(paths) {
         let absent = roots.source_meta.as_deref().map_or(Some(true), |m| source_absent(m, &rel));
         match absent {

@@ -4,7 +4,7 @@ use super::{
 use crate::win::copy::{copy_hashed, finalize};
 use ferry_core::cargo::{CargoItem, CargoManifest, Partial};
 use ferry_core::deletes::{decide, DeleteDecision, PairDeletes};
-use ferry_core::diff::{diff_pair, Candidate, DestinationView};
+use ferry_core::diff::{diff_pair_counting, Candidate, DestinationView};
 use ferry_core::entry::{fold, long_path};
 use ferry_core::load::{budget, pick_load};
 use ferry_core::snapshot::SnapshotReader;
@@ -90,7 +90,17 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
             }
         };
         let stable_secs = i64::from(opts.stable_minutes) * 60;
-        let mut d = match diff_pair(pair, &roots.source, destination, &manifest, ctx.now, stable_secs) {
+        // A big folder can take minutes to list: say so, with a count that moves (twice a second at most).
+        let comparing = format!("Comparing {pair} at {} with {}", ctx.source_name, ctx.destination_name);
+        emit(Event::Step(comparing.clone()));
+        let mut said = Instant::now();
+        let mut listed = |n: u64| {
+            if said.elapsed() >= Duration::from_millis(500) {
+                said = Instant::now();
+                emit(Event::Step(format!("{comparing}: {n} files so far")));
+            }
+        };
+        let mut d = match diff_pair_counting(pair, &roots.source, destination, &manifest, ctx.now, stable_secs, &mut listed) {
             Ok(d) => d,
             Err(e) => {
                 emit(err(format!("listing failed: {e}")));
@@ -156,6 +166,9 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
         q.needs_confirm = decision == DeleteDecision::NeedsConfirm;
         match (decision, destination_meta) {
             (DeleteDecision::Apply, Some(destination_meta)) => {
+                if !q.paths.is_empty() {
+                    emit(Event::Step(format!("Deleting {} files in {pair} at {}", q.paths.len(), ctx.destination_name)));
+                }
                 let mut failed = vec![];
                 for rel in std::mem::take(&mut q.paths) {
                     match delete_at(destination_meta, pair, rel, &mut snaps, emit) {

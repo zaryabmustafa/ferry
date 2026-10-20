@@ -68,6 +68,8 @@ impl TripCtx<'_> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// What the trip is doing now, for the status line (`Status::step`).
+    Step(String),
     Progress { pair: String, rel: String, done: u64, total: u64 },
     Carried { pair: String, rel: String, size: u64 },
     Deleted { pair: String, rel: String },

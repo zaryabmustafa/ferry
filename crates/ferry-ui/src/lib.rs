@@ -518,6 +518,7 @@ fn show_problem(ui: &Flyout, p: &Poll) {
     ui.set_running(up);
     ui.set_status(status.into());
     ui.set_detail(detail.into());
+    ui.set_doing("".into());
     ui.set_trust_note("".into());
     ui.set_location("".into());
     ui.set_show_meter(false);
@@ -537,6 +538,7 @@ fn show(ui: &Flyout, s: &Status, n: &Names) {
     ui.set_location_icon(icon.into());
     ui.set_status(status_text(s, n).into());
     ui.set_detail(detail_text(s, detail_line(s.carried_bytes, s.cap_bytes, s.rate_bps, s.eta_secs), n).into());
+    ui.set_doing(s.step.as_str().into());
     ui.set_trust_note(trust_note(s).into());
     ui.set_paused(s.paused_until.is_some());
     ui.set_trips(trips_line(s.trips_behind, n).into());

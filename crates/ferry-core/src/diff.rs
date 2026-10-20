@@ -114,10 +114,24 @@ fn delete_tree(destination: &mut DestinationView, rel: &str, d: &mut PairDiff) {
 pub fn diff_pair(
     pair: &str,
     source_root: &Path,
+    destination: DestinationView,
+    cargo: &CargoManifest,
+    now: i64,
+    stable_secs: i64,
+) -> io::Result<PairDiff> {
+    diff_pair_counting(pair, source_root, destination, cargo, now, stable_secs, &mut |_| {})
+}
+
+/// `diff_pair`, calling `listed` with the source files seen so far after each directory, so a
+/// long listing can show it is moving.
+pub fn diff_pair_counting(
+    pair: &str,
+    source_root: &Path,
     mut destination: DestinationView,
     cargo: &CargoManifest,
     now: i64,
     stable_secs: i64,
+    listed: &mut dyn FnMut(u64),
 ) -> io::Result<PairDiff> {
     let mut d = PairDiff { complete: true, ..Default::default() };
     let carried = cargo.versions();
@@ -199,6 +213,7 @@ pub fn diff_pair(
                 }
             }
         }
+        listed(d.source_files);
     }
     d.cargo_gone = unseen.into_values().map(String::from).collect();
     d.cargo_gone.sort();
@@ -299,6 +314,20 @@ mod tests {
 
     fn run(source: &Path, destination: &Path, cargo: &CargoManifest) -> PairDiff {
         diff_pair("p", source, DestinationView::Live(destination), cargo, now(), 600).unwrap()
+    }
+
+    #[test]
+    fn counting_reports_files_seen_after_each_directory() {
+        let (o, h, old) = setup();
+        put(o.path(), "a.txt", 1, old);
+        put(o.path(), r"sub\b.txt", 1, old);
+        put(o.path(), r"sub\c.txt", 1, old);
+        let mut seen = vec![];
+        let d = diff_pair_counting("p", o.path(), DestinationView::Live(h.path()), &CargoManifest::default(), now(), 600, &mut |n| seen.push(n))
+            .unwrap();
+        assert_eq!(seen.len(), 2, "once per directory: {seen:?}");
+        assert_eq!(seen.last(), Some(&d.source_files));
+        assert_eq!(d.source_files, 3);
     }
 
     fn setup() -> (tempfile::TempDir, tempfile::TempDir, i64) {

@@ -332,6 +332,7 @@ fn trip(
     }
 
     let lan_host = unc_host(lan_ip);
+    emit(Event::Step(format!("Signing in to {here_name}")));
     let connected = connect_shares(pairs, |p| here_path(kind, p), |share| smb::connect(&lan_host, share, &here.credential_target));
     let pairs = match connected {
         Ok((kept, dropped)) => {

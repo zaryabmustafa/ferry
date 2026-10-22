@@ -22,6 +22,7 @@ pub struct PairDiff {
     /// False if any subdirectory could not be listed (its subtree was skipped).
     pub complete: bool,
     pub source_files: u64,
+    pub source_bytes: u64,
     pub destination_files: u64,
     /// Source names that differ only in case (a case-sensitive server): a Windows folder can hold
     /// only one, so neither is copied, and the listing isn't trusted for deletes.
@@ -264,6 +265,7 @@ fn handle_source(
         return;
     }
     d.source_files += 1;
+    d.source_bytes += o.size;
     unseen.remove(&fold(&rel));
     let differs = match destination {
         Some(h) => h.size != o.size || !same_mtime(h.mtime, o.mtime),
@@ -339,6 +341,7 @@ mod tests {
         assert_eq!(rels(&d.carry), [r"org\repo\2023.tar.gz", r"org\repo\my_repo_notes.txt"]);
         assert!(d.deletes.is_empty(), "nothing under a skipped folder is deleted: {:?}", d.deletes);
         assert_eq!(d.source_files, 2);
+        assert_eq!(d.source_bytes, 2, "a skipped folder doesn't count toward the size");
     }
 
     #[test]

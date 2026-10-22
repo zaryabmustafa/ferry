@@ -152,6 +152,7 @@ pub fn run_fill(ctx: &TripCtx, emit: &mut dyn FnMut(Event)) -> io::Result<FillRe
         }
         if d.complete {
             q.source_files = d.source_files;
+            q.source_bytes = d.source_bytes;
         }
         q.outstanding = d.carry.len() as u64 + d.unstable;
         let in_cargo = manifest.items.iter().filter(|i| i.pair == pair).count();

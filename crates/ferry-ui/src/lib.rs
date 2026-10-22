@@ -577,9 +577,11 @@ fn rows(s: &Status, paths: &dyn Fn(&str) -> String, n: &Names) -> Vec<Row> {
         .iter()
         .map(|p| {
             let (detail, right, kind) = folder_row(p, n);
-            let label = [p.id.as_str(), &detail, &right].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", ");
+            let total = size(p.source_bytes);
+            let label = [p.id.as_str(), &total, &detail, &right].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", ");
             Row {
                 name: p.id.as_str().into(),
+                total: total.into(),
                 detail: detail.into(),
                 right: right.into(),
                 percent: f32::from(p.destination_percent.min(100)) / 100.0,
@@ -790,6 +792,7 @@ mod tests {
             needs_confirm: confirm,
             pending_deletes: 0,
             deletes_list: 0,
+            source_bytes: 0,
         }
     }
 

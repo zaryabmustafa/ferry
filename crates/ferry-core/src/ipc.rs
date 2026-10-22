@@ -78,6 +78,9 @@ pub struct PairStatus {
     /// the list the user saw is approved.
     #[serde(default)]
     pub deletes_list: u64,
+    /// The folder's size at the source, from its last complete listing (0 until then).
+    #[serde(default)]
+    pub source_bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -239,6 +242,7 @@ mod tests {
                 needs_confirm: true,
                 pending_deletes: 4,
                 deletes_list: 0,
+                source_bytes: 5,
             }],
             attention: vec!["x".into()],
             step: "Copying a.zip".into(),

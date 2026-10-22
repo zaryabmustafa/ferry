@@ -17,6 +17,9 @@ pub struct PairDeletes {
     /// the destination is from a mirror.
     #[serde(default)]
     pub source_files: u64,
+    /// Total size of those files: the folder's size in the UI.
+    #[serde(default)]
+    pub source_bytes: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,6 +90,7 @@ mod tests {
         q.pairs.insert("repositories".into(), PairDeletes {
             paths: vec!["a.txt".into(), "dir/b.txt".into()],
             outstanding: 3, needs_confirm: true, confirmed: false, destination_files: 217, source_files: 240,
+            source_bytes: 1 << 30,
         });
         q.save(&p).unwrap();
         assert_eq!(DeleteQueue::load(&p).unwrap(), q);

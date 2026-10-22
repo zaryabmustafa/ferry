@@ -1104,6 +1104,7 @@ impl Engine {
                     needs_confirm: d.is_some_and(|d| d.needs_confirm && !d.confirmed),
                     pending_deletes: d.map_or(0, |d| u32::try_from(d.paths.len()).unwrap_or(u32::MAX)),
                     deletes_list: d.map_or(0, |d| list_id(&d.paths)),
+                    source_bytes: d.map_or(0, |d| d.source_bytes),
                 }
             })
             .collect();
@@ -1903,6 +1904,7 @@ mod tests {
             needs_confirm,
             pending_deletes,
             deletes_list: 0,
+            source_bytes: 0,
         }
     }
 

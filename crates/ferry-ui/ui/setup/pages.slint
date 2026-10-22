@@ -437,6 +437,7 @@ export component FoldersPage inherits Page {
                             for r in S.rows: HorizontalLayout {
                                 spacing: 6px;
                                 padding-right: r.name == p.id ? 6px : 0px;
+                                if r.name == p.id && r.total != "": Chip { text: r.total + " at " + S.source-place; }
                                 if r.name == p.id && r.kind == 2: Chip { tone: 1; icon: "\u{E73E}"; text: "Up to date"; }
                                 if r.name == p.id && r.kind == 1: Chip { text: r.right; }
                                 if r.name == p.id && (r.kind == 0 || r.kind == 3) && r.right != "": Chip { tone: 3; text: r.right + " on the laptop"; }

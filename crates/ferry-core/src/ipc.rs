@@ -118,6 +118,13 @@ pub struct Status {
     /// far", "Copying docs\a.zip"), so a long listing doesn't look stuck. Empty between trips.
     #[serde(default)]
     pub step: String,
+    /// What was on board when the running unload started (0 otherwise), so the UI can say how much
+    /// of it is delivered.
+    #[serde(default)]
+    pub trip_bytes: u64,
+    /// The pair the running trip is copying now; empty between trips.
+    #[serde(default)]
+    pub active_pair: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -246,6 +253,8 @@ mod tests {
             }],
             attention: vec!["x".into()],
             step: "Copying a.zip".into(),
+            trip_bytes: 6 << 30,
+            active_pair: "docs".into(),
         };
         rt(Response::Status(s));
         rt(Response::Ok);

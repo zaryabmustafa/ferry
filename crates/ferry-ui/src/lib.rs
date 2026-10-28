@@ -103,7 +103,7 @@ impl Names {
 
 fn status_line(phase: Phase, paused_until: Option<i64>, n: &Names) -> String {
     match phase {
-        Phase::Filling => "Filling the laptop".into(),
+        Phase::Filling => format!("Loading at {}", n.src),
         Phase::Unloading => format!("Unloading at {}", n.dest),
         Phase::UpToDate => format!("{} is up to date", n.dest),
         Phase::Waiting => "Waiting: not on a known network".into(),
@@ -112,20 +112,78 @@ fn status_line(phase: Phase, paused_until: Option<i64>, n: &Names) -> String {
     }
 }
 
-/// The status line. Idle at the destination with nothing carried says what is still left (I5).
+/// The status line. Between trips it says what the laptop is for right now: cargo to take to the
+/// destination, or, at the destination with nothing carried, what is still left (I5).
 fn status_text(s: &Status, n: &Names) -> String {
     if let Some(place) = blocked_place(s, n) {
         return format!("{place}. Not copying");
     }
-    let destination_idle = s.phase == Phase::Idle && s.paused_until.is_none() && s.location == Location::Destination && s.carried_bytes == 0;
-    if !destination_idle {
+    if s.paused_until.is_some() || !matches!(s.phase, Phase::Idle | Phase::Waiting) {
         return status_line(s.phase, s.paused_until, n);
     }
-    match s.trips_behind {
-        Some(t @ 1..) => format!("Delivered. {}", trips_line(Some(t), n)),
-        _ if s.pairs.iter().any(|p| p.needs_confirm) => format!("Delivered. Deletes at {} need your OK", n.dest),
-        _ if s.pairs.iter().any(|p| !p.up_to_date) => format!("Delivered. {} isn't fully up to date yet", n.dest),
-        _ => status_line(s.phase, s.paused_until, n),
+    match s.location {
+        Location::Elsewhere if s.carried_bytes > 0 => format!("Carrying {} to {}", size(s.carried_bytes), n.dest),
+        // "Loaded" only when (nearly) full: a fill that stopped early may well start again here.
+        Location::Source if s.carried_bytes > 0 && s.carried_bytes >= s.cap_bytes / 10 * 9 => format!("Loaded. Take the laptop to {}", n.dest),
+        Location::Source if s.carried_bytes > 0 => format!("{} on board for {}", size(s.carried_bytes), n.dest),
+        Location::Destination if s.carried_bytes == 0 => destination_line(s, n).unwrap_or_else(|| status_line(s.phase, None, n)),
+        _ => status_line(s.phase, None, n),
+    }
+}
+
+/// What is left at the destination once the laptop is empty, if anything.
+fn destination_line(s: &Status, n: &Names) -> Option<String> {
+    if s.pairs.iter().any(|p| p.needs_confirm) {
+        return Some(format!("Deletes at {} need your OK", n.dest));
+    }
+    if s.pairs.iter().any(|p| !p.up_to_date) {
+        return Some(match caught_up(s) {
+            Some((pct, _, _)) => format!("{} is {pct}% caught up", n.dest),
+            None => format!("{} isn't fully up to date yet", n.dest),
+        });
+    }
+    s.trips_behind.filter(|&t| t > 0).map(|t| trips_line(Some(t), n))
+}
+
+/// What a pair still needs at the destination, from its source size and its share there.
+fn left_to_bring(p: &PairStatus) -> u64 {
+    p.source_bytes / 100 * u64::from(100 - p.destination_percent.min(100))
+}
+
+/// (percent, bytes at the destination, bytes at the source) over the pairs, weighted by size. None
+/// while a folder that isn't up to date has no listing yet (its size is unknown, so any percent
+/// would overstate), and when no data is missing (only deletes wait). Never rounds up to 100.
+fn caught_up(s: &Status) -> Option<(u8, u64, u64)> {
+    if s.pairs.iter().any(|p| !p.up_to_date && p.source_bytes == 0) {
+        return None;
+    }
+    let total: u64 = s.pairs.iter().map(|p| p.source_bytes).sum();
+    let have = total - s.pairs.iter().map(left_to_bring).sum::<u64>();
+    (have < total).then(|| (((u128::from(have) * 100 / u128::from(total)) as u8).min(99), have, total))
+}
+
+/// The flyout's line under the status before problems take it over (`detail_text`). The amount on
+/// the laptop is the meter's label, so this says what that amount is for.
+fn usual_detail(s: &Status, n: &Names) -> String {
+    let speed = detail_line(0, 0, s.rate_bps, s.eta_secs);
+    if s.phase == Phase::Unloading && s.trip_bytes > 0 {
+        let done = format!("{} of {} GB unloaded", gb(s.trip_bytes.saturating_sub(s.carried_bytes)), gb(s.trip_bytes));
+        return [done, speed].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" · ");
+    }
+    if s.paused_until.is_some() || !matches!(s.phase, Phase::Idle | Phase::Waiting) {
+        return speed;
+    }
+    match s.location {
+        Location::Source | Location::Elsewhere if s.carried_bytes > 0 => format!("Unloading starts when the laptop is at {}", n.dest),
+        Location::Destination if s.carried_bytes == 0 && s.pairs.iter().any(|p| !p.up_to_date && !p.needs_confirm) => {
+            match caught_up(s).map(|(_, have, total)| total - have) {
+                // Only deletes wait, or a size isn't known yet: nothing to promise about trips.
+                None => speed,
+                Some(left) if left <= s.cap_bytes => format!("Laptop is empty; the next trip from {} brings the last {}", n.src, size(left)),
+                Some(left) => format!("Laptop is empty; {} still to bring from {}", size(left), n.src),
+            }
+        }
+        _ => speed,
     }
 }
 
@@ -238,6 +296,30 @@ fn folder_row(p: &PairStatus, n: &Names) -> (String, String, i32) {
     }
 }
 
+/// The flyout's line under a folder and whether the running trip is copying it now. Cargo is said
+/// as an amount on board; a folder with none says what it still needs at the destination.
+fn flyout_line(s: &Status, p: &PairStatus, kind: i32, detail: &str, n: &Names) -> (String, bool) {
+    if kind == ROW_ATTENTION || kind == ROW_DONE {
+        return (detail.into(), false);
+    }
+    let now = p.carried_bytes > 0 && s.active_pair == p.id && matches!(s.phase, Phase::Filling | Phase::Unloading);
+    let held = size(p.carried_bytes);
+    let mut line = match s.phase {
+        _ if p.carried_bytes == 0 => match left_to_bring(p) {
+            0 => format!("{}% at {}", p.destination_percent, n.dest),
+            left => format!("{} still to bring", size(left)),
+        },
+        Phase::Filling if now => format!("Loading · {held} on board"),
+        Phase::Unloading if now => format!("Unloading · {held} left"),
+        _ => format!("{held} on board"),
+    };
+    // Deletions stay visible (PRODUCT.md: never surprise with data loss).
+    if p.removed_at_destination > 0 {
+        line += &format!(" · {} removed at {}", p.removed_at_destination, n.dest);
+    }
+    (line, now)
+}
+
 // ---------- theme ----------
 
 /// DWM stores the accent as 0xAABBGGRR.
@@ -322,9 +404,10 @@ fn apply_theme(t: &Theme) {
         }
         t.set_subtle(sys(COLOR_BTNFACE));
         // Borders and status colors use the text color: it's the one color guaranteed to show on Window.
-        for set in [Theme::set_stroke, Theme::set_ink, Theme::set_ok, Theme::set_warn] {
+        for set in [Theme::set_stroke, Theme::set_ink, Theme::set_ok, Theme::set_warn, Theme::set_landed] {
             set(t, text);
         }
+        t.set_freed(sys(COLOR_BTNFACE));
         t.set_muted(sys(COLOR_GRAYTEXT));
         for set in [Theme::set_accent, Theme::set_seg_2, Theme::set_seg_3] {
             set(t, hilite);
@@ -537,17 +620,46 @@ fn show(ui: &Flyout, s: &Status, n: &Names) {
     ui.set_location(n.at(s.location).unwrap_or_else(|| "Elsewhere".into()).into());
     ui.set_location_icon(icon.into());
     ui.set_status(status_text(s, n).into());
-    ui.set_detail(detail_text(s, detail_line(s.carried_bytes, s.cap_bytes, s.rate_bps, s.eta_secs), n).into());
+    ui.set_detail(detail_text(s, usual_detail(s, n), n).into());
     ui.set_doing(s.step.as_str().into());
     ui.set_trust_note(trust_note(s).into());
     ui.set_paused(s.paused_until.is_some());
     ui.set_trips(trips_line(s.trips_behind, n).into());
     ui.set_attention(model(s.attention.iter().map(|a| a.as_str().into()).collect()));
 
-    ui.set_show_meter(s.cap_bytes > 0);
-    ui.set_meter_value(meter_value(s));
-    ui.set_segments(model(segments(s)));
+    let m = meter(s, n);
+    ui.set_show_meter(m.is_some());
+    let (label, amount, segs, value) = m.unwrap_or_default();
+    ui.set_meter_label(label.into());
+    ui.set_meter_amount(amount.into());
+    ui.set_meter_value(value);
+    ui.set_segments(model(segs));
     ui.set_rows(model(rows(s, &|_| String::new(), n)));
+}
+
+const TONE_FREED: i32 = 3;
+const TONE_LANDED: i32 = 4;
+
+/// The flyout's bar: (label, amount, segments, value 0 to 100). What is on the laptop while
+/// anything is, or is being loaded; unloading also shows the space already freed. With the laptop
+/// empty at the destination, how much of the source is there, if not all of it.
+fn meter(s: &Status, n: &Names) -> Option<(String, String, Vec<Seg>, f32)> {
+    if s.cap_bytes > 0 && (s.carried_bytes > 0 || s.phase == Phase::Filling) {
+        let mut segs = segments(s);
+        if s.phase != Phase::Unloading {
+            return Some(("On the laptop".into(), format!("{} of {} GB", gb(s.carried_bytes), gb(s.cap_bytes)), segs, meter_value(s)));
+        }
+        let start = (s.carried_bytes as f32 / s.cap_bytes as f32).min(1.0);
+        let width = (s.trip_bytes.saturating_sub(s.carried_bytes) as f32 / s.cap_bytes as f32).min(1.0 - start);
+        if width > 0.0 {
+            segs.push(Seg { start, width, tone: TONE_FREED });
+        }
+        return Some(("Left on the laptop".into(), format!("{} GB", gb(s.carried_bytes)), segs, meter_value(s)));
+    }
+    let empty_here = s.location == Location::Destination && s.phase == Phase::Idle && s.carried_bytes == 0;
+    let (pct, have, total) = caught_up(s).filter(|_| empty_here && s.pairs.iter().any(|p| !p.up_to_date))?;
+    let seg = Seg { start: 0.0, width: f32::from(pct) / 100.0, tone: TONE_LANDED };
+    Some((format!("At {}", n.dest), format!("{} of {} GB", gb(have), gb(total)), vec![seg], f32::from(pct)))
 }
 
 fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
@@ -575,11 +687,17 @@ fn segments(s: &Status) -> Vec<Seg> {
 fn rows(s: &Status, paths: &dyn Fn(&str) -> String, n: &Names) -> Vec<Row> {
     s.pairs
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(i, p)| {
             let (detail, right, kind) = folder_row(p, n);
+            let (line, now) = flyout_line(s, p, kind, &detail, n);
             let total = size(p.source_bytes);
             let label = [p.id.as_str(), &total, &detail, &right].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", ");
             Row {
+                line: line.into(),
+                // Matches the folder's meter segment (`segments`).
+                tone: if p.carried_bytes > 0 { (i % 3) as i32 } else { -1 },
+                now,
                 name: p.id.as_str().into(),
                 total: total.into(),
                 detail: detail.into(),
@@ -774,7 +892,7 @@ mod tests {
 
     #[test]
     fn every_phase_has_copy() {
-        assert_eq!(status_line(Phase::Filling, None, &n()), "Filling the laptop");
+        assert_eq!(status_line(Phase::Filling, None, &n()), "Loading at HQ");
         assert_eq!(status_line(Phase::Unloading, None, &n()), "Unloading at Lake house");
         assert_eq!(status_line(Phase::UpToDate, None, &n()), "Lake house is up to date");
         assert_eq!(status_line(Phase::Idle, Some(1), &n()), "Paused");
@@ -816,12 +934,88 @@ mod tests {
         let done = || vec![pair(0, 0, 100, true, false)];
         let text = |s: Status| status_text(&s, &n());
         assert_eq!(text(status(Phase::UpToDate, 0, Some(0), done())), "Lake house is up to date");
-        assert_eq!(text(status(Phase::Idle, 0, Some(3), done())), "Delivered. Lake house is about 3 trips behind");
-        assert_eq!(text(status(Phase::Idle, 0, Some(0), vec![pair(0, 0, 0, false, true)])), "Delivered. Deletes at Lake house need your OK");
-        assert_eq!(text(status(Phase::Idle, 0, None, vec![pair(0, 0, 0, false, false)])), "Delivered. Lake house isn't fully up to date yet");
-        // Still carrying, or elsewhere: the plain line.
+        assert_eq!(text(status(Phase::Idle, 0, Some(3), done())), "Lake house is about 3 trips behind");
+        assert_eq!(text(status(Phase::Idle, 0, Some(0), vec![pair(0, 0, 0, false, true)])), "Deletes at Lake house need your OK");
+        assert_eq!(text(status(Phase::Idle, 0, None, vec![pair(0, 0, 0, false, false)])), "Lake house isn't fully up to date yet");
+        // Still carrying here: the plain line.
         assert_eq!(text(status(Phase::Idle, 5, Some(3), done())), "Idle");
         assert_eq!(text(status(Phase::Unloading, 0, Some(3), done())), "Unloading at Lake house");
+    }
+
+    const GB: u64 = 1 << 30;
+
+    fn sized(id: &str, carried: u64, pct: u8, source: u64) -> PairStatus {
+        PairStatus { id: id.into(), carried_bytes: carried, destination_percent: pct, source_bytes: source, ..pair(0, 0, pct, pct == 100 && carried == 0, false) }
+    }
+
+    /// The screenshot that started trip-states.html: at the destination, laptop empty, one folder 90% there.
+    #[test]
+    fn delivered_says_how_far_the_destination_is() {
+        let s = Status { cap_bytes: 350 * GB, ..status(Phase::Idle, 0, None, vec![sized("repositories", 0, 90, 700 * GB)]) };
+        assert_eq!(status_text(&s, &n()), "Lake house is 90% caught up");
+        assert_eq!(usual_detail(&s, &n()), "Laptop is empty; the next trip from HQ brings the last 70 GB");
+        // More than one laptop's worth: no promise about the next trip.
+        assert_eq!(usual_detail(&Status { cap_bytes: 50 * GB, ..s.clone() }, &n()), "Laptop is empty; 70 GB still to bring from HQ");
+        // A folder without a listing yet, or only deletes waiting: no percent to stand behind.
+        let unlisted = status(Phase::Idle, 0, None, vec![sized("a", 0, 100, GB), pair(0, 0, 0, false, false)]);
+        assert_eq!((status_text(&unlisted, &n()).as_str(), meter(&unlisted, &n()).is_none()), ("Lake house isn't fully up to date yet", true));
+        let deletes = status(Phase::Idle, 0, None, vec![sized("a", 0, 100, GB), sized("b", 0, 100, GB)].into_iter().map(|p| PairStatus { up_to_date: p.id == "a", ..p }).collect());
+        assert_eq!((status_text(&deletes, &n()).as_str(), usual_detail(&deletes, &n()).as_str()), ("Lake house isn't fully up to date yet", ""));
+        let (label, amount, segs, value) = meter(&s, &n()).unwrap();
+        assert_eq!((label.as_str(), amount.as_str(), segs[0].tone, value), ("At Lake house", "630 of 700 GB", TONE_LANDED, 90.0));
+        let r = &rows(&s, &|_| String::new(), &n())[0];
+        assert_eq!((r.line.as_str(), r.tone, r.kind), ("70 GB still to bring", -1, ROW_BAR));
+        // 99.9% there still isn't caught up.
+        let s = status(Phase::Idle, 0, None, vec![sized("a", 0, 100, 999 * GB), sized("b", 0, 0, GB)]);
+        assert_eq!(status_text(&s, &n()), "Lake house is 99% caught up");
+    }
+
+    #[test]
+    fn a_trip_reads_as_loading_then_unloading() {
+        let at = |location, phase, carried| Status { location, phase, cap_bytes: 350 * GB, ..status(phase, carried, Some(2), vec![]) };
+        let mut s = at(Location::Source, Phase::Filling, 252 * GB);
+        s.pairs = vec![sized("repositories", 190 * GB, 70, 700 * GB), sized("vm", 62 * GB, 50, 400 * GB), sized("photos", 0, 100, 90 * GB)];
+        s.active_pair = "vm".into();
+        assert_eq!(status_text(&s, &n()), "Loading at HQ");
+        let (label, amount, segs, _) = meter(&s, &n()).unwrap();
+        assert_eq!((label.as_str(), amount.as_str(), segs.len()), ("On the laptop", "252 of 350 GB", 2));
+        let lines: Vec<_> = rows(&s, &|_| String::new(), &n()).into_iter().map(|r| (r.line.to_string(), r.tone, r.now)).collect();
+        assert_eq!(lines[0], ("190 GB on board".into(), 0, false));
+        assert_eq!(lines[1], ("Loading · 62 GB on board".into(), 1, true));
+        assert_eq!(lines[2], ("Up to date".into(), -1, false));
+
+        // Done loading, still at the source; then on the way.
+        let loaded = Status { phase: Phase::Idle, active_pair: String::new(), ..s.clone() };
+        // 252 of 350 GB: a fill that stopped early, which may start again here.
+        assert_eq!(status_text(&loaded, &n()), "252 GB on board for Lake house");
+        assert_eq!(status_text(&Status { carried_bytes: 340 * GB, ..loaded.clone() }, &n()), "Loaded. Take the laptop to Lake house");
+        assert_eq!(usual_detail(&loaded, &n()), "Unloading starts when the laptop is at Lake house");
+        let away = Status { location: Location::Elsewhere, phase: Phase::Waiting, ..loaded.clone() };
+        assert_eq!(status_text(&away, &n()), "Carrying 252 GB to Lake house");
+        assert_eq!(status_text(&Status { carried_bytes: 0, ..away }, &n()), "Waiting: not on a known network");
+
+        // Unloading: the bar drains and the freed space follows it.
+        let mut u = Status { location: Location::Destination, phase: Phase::Unloading, carried_bytes: 64 * GB, trip_bytes: 252 * GB, active_pair: "vm".into(), ..s };
+        u.pairs[0].carried_bytes = 0;
+        u.pairs[1].carried_bytes = 64 * GB;
+        assert_eq!(status_text(&u, &n()), "Unloading at Lake house");
+        assert_eq!(usual_detail(&u, &n()), "188 of 252 GB unloaded");
+        let (label, amount, segs, _) = meter(&u, &n()).unwrap();
+        assert_eq!((label.as_str(), amount.as_str()), ("Left on the laptop", "64 GB"));
+        let freed = segs.last().unwrap();
+        assert_eq!(freed.tone, TONE_FREED);
+        assert!((freed.start - 64.0 / 350.0).abs() < 1e-6 && (freed.width - 188.0 / 350.0).abs() < 1e-6);
+        assert_eq!(rows(&u, &|_| String::new(), &n())[1].line.as_str(), "Unloading · 64 GB left");
+        // Deletions show on an emptied folder too.
+        u.pairs[0].removed_at_destination = 3;
+        assert_eq!(rows(&u, &|_| String::new(), &n())[0].line.as_str(), "210 GB still to bring · 3 removed at Lake house");
+    }
+
+    #[test]
+    fn nothing_to_measure_hides_the_bar() {
+        assert!(meter(&status(Phase::UpToDate, 0, Some(0), vec![sized("a", 0, 100, GB)]), &n()).is_none());
+        // Before the first listing there's no size to compare with.
+        assert!(meter(&status(Phase::Idle, 0, None, vec![pair(0, 0, 40, false, false)]), &n()).is_none());
     }
 
     #[test]

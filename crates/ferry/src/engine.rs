@@ -489,6 +489,7 @@ impl Engine {
         }
         self.log.line(if kind == Kind::Fill { "fill started" } else { "unload started" });
         self.status.attention.clear();
+        self.status.trip_bytes = if kind == Kind::Unload { self.status.carried_bytes } else { 0 };
         self.counts.clear();
         self.trip = Some(Trip { kind, cancel, first_progress: None, moved: 0, cur: Default::default(), cur_done: 0 });
     }
@@ -496,7 +497,11 @@ impl Engine {
     fn trip_event(&mut self, e: Event) {
         let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         match e {
-            Event::Step(s) => self.status.step = s,
+            Event::Step(s) => {
+                // A step is listing or checking, not copying; progress names the folder again.
+                self.status.step = s;
+                self.status.active_pair.clear();
+            }
             Event::Progress { pair, rel, done, total } => self.progress(pair, rel, done, total),
             Event::Carried { pair, rel, size } => {
                 self.log.line(&format!("carried {rel} ({pair}, {})", mb(size)));
@@ -562,6 +567,9 @@ impl Engine {
             t.cur = (pair, rel);
             t.cur_done = 0;
         }
+        if self.status.active_pair != t.cur.0 {
+            self.status.active_pair.clone_from(&t.cur.0);
+        }
         t.moved += done - t.cur_done;
         t.cur_done = done;
         let secs = t.first_progress.get_or_insert_with(Instant::now).elapsed().as_secs_f64();
@@ -584,6 +592,8 @@ impl Engine {
         self.status.rate_bps = 0;
         self.status.eta_secs = None;
         self.status.step.clear();
+        self.status.trip_bytes = 0;
+        self.status.active_pair.clear();
         if !matches!(r.report, Report::WrongPlace { .. }) {
             self.status.remote_ok = r.remote_ok;
         }
@@ -1134,9 +1144,9 @@ impl Engine {
             _ if paused => Icon::Paused,
             _ => Icon::Idle,
         };
-        let dest = display_name(&self.cfg, Side::Destination);
+        let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         let what = match s.phase {
-            Phase::Filling => "filling the laptop".into(),
+            Phase::Filling => format!("loading at {src}"),
             Phase::Unloading => format!("unloading at {dest}"),
             Phase::UpToDate => format!("{dest} is up to date"),
             Phase::Waiting => "waiting for a known network".into(),

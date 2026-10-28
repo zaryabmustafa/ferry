@@ -27,6 +27,10 @@ export global Theme {
     in property <color> accent-soft: accent.mix(mica, 0.18);
     in property <color> seg-2: accent.mix(ink, 0.6);
     in property <color> seg-3: accent.mix(ink, 0.3);
+    // Not accent: what is already at the destination (gray, 3:1 on the track) and the space an
+    // unload has freed on the laptop (just off the track).
+    in property <color> landed: ink.mix(mica, 0.58);
+    in property <color> freed: ink.mix(subtle, 0.08);
 }
 
 // Like Windows, focus rings show only while the keyboard is in use: Tab turns them on, a click off.

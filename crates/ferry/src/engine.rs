@@ -40,6 +40,14 @@ const UPDATE_TICK_MS: u64 = 10 * 60_000;
 /// At the destination, after an unload that was skipped or left something behind: one more try this long after.
 const DESTINATION_RETRY_MS: u64 = 15 * 60_000;
 
+/// Elsewhere, look again this often: a server that didn't answer yet (just after startup, or
+/// while a VPN takes over the route) sends no network change when it starts answering.
+const ELSEWHERE_RETRY_MS: u64 = 5 * 60_000;
+
+/// At the destination with copying blocked and work waiting, look again this often: a VPN that
+/// just connected finds its direct path within a minute or so, and says nothing when it does.
+const BLOCKED_RETRY_MS: u64 = 2 * 60_000;
+
 pub enum Input {
     NetChanged,
     Timer(usize),
@@ -399,21 +407,21 @@ impl Engine {
                 self.arm_recheck();
             }
         }
-        self.arm_destination_retry();
+        self.arm_retry();
         self.evaluate();
     }
 
-    /// At the destination with copying blocked, nothing else looks again: one more check later (as after
-    /// an undone unload), but only while there is work waiting.
-    fn arm_destination_retry(&self) {
-        if self.sched.loc != Location::Destination || self.sched.bulk {
-            return;
-        }
-        let m = CargoManifest::load(&self.paths.manifest).unwrap_or_default();
-        let q = DeleteQueue::load(&self.paths.deletes).unwrap_or_default();
-        let snapped = |id: &str| crate::trip::snap_path(&self.paths.snapshots, id).exists();
-        if destination_work_waiting(&self.cfg.pairs, &m, &q, &snapped) {
-            tray::set_timer(self.hwnd, T_RECHECK, DESTINATION_RETRY_MS);
+    /// Elsewhere, or at the destination with copying blocked, nothing else looks again: a check
+    /// later (`retry_after`). Each check that finds the same arms the next.
+    fn arm_retry(&self) {
+        let work = || {
+            let m = CargoManifest::load(&self.paths.manifest).unwrap_or_default();
+            let q = DeleteQueue::load(&self.paths.deletes).unwrap_or_default();
+            let snapped = |id: &str| crate::trip::snap_path(&self.paths.snapshots, id).exists();
+            destination_work_waiting(&self.cfg.pairs, &m, &q, &snapped)
+        };
+        if let Some(ms) = retry_after(self.sched.loc, self.sched.bulk, work) {
+            tray::set_timer(self.hwnd, T_RECHECK, ms);
         }
     }
 
@@ -591,7 +599,7 @@ impl Engine {
                     // each time would start and stop trips back to back).
                     self.status.bulk_blocked = Some(why);
                     self.status.trusting_vpn = false;
-                    self.arm_destination_retry();
+                    self.arm_retry();
                 }
             }
             Report::Fill(Ok(rep)) => {
@@ -1398,6 +1406,17 @@ pub fn approve(q: &mut DeleteQueue, pair: &str, seen: Option<&[String]>, count: 
     }
 }
 
+/// How long until the location is checked again when no network change will do it; `None` when
+/// something else looks (the source re-check) or nothing is waiting. `work` (cargo or deletes
+/// for the destination) is read only at a blocked destination.
+pub fn retry_after(loc: Location, bulk: bool, work: impl FnOnce() -> bool) -> Option<u64> {
+    match loc {
+        Location::Elsewhere => Some(ELSEWHERE_RETRY_MS),
+        Location::Destination if !bulk && work() => Some(BLOCKED_RETRY_MS),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Resolved {
     /// The network changed again while resolving: ignore this and resolve again.
@@ -1863,6 +1882,16 @@ mod tests {
         approve(&mut q, "p", None, 2, 0).unwrap();
         assert!(q.pairs["p"].confirmed);
         assert!(!q.pairs["p"].needs_confirm, "the Delete button goes away once confirmed");
+    }
+
+    #[test]
+    fn retry_when_no_network_change_will_come() {
+        let unread = || panic!("work is only read at a blocked destination");
+        assert_eq!(retry_after(Location::Elsewhere, false, unread), Some(ELSEWHERE_RETRY_MS), "server didn't answer yet");
+        assert_eq!(retry_after(Location::Destination, false, || true), Some(BLOCKED_RETRY_MS), "VPN still finding its path");
+        assert_eq!(retry_after(Location::Destination, false, || false), None, "nothing to deliver");
+        assert_eq!(retry_after(Location::Destination, true, unread), None);
+        assert_eq!(retry_after(Location::Source, false, unread), None, "the source re-check covers it");
     }
 
     #[test]

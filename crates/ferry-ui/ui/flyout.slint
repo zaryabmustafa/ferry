@@ -271,7 +271,8 @@ export component Flyout inherits Window {
                     padding: 6px;
                     for r in root.rows: Rectangle {
                         accessible-role: list-item;
-                        accessible-label: r.label;
+                        // `label` describes the settings window's row; the flyout reads out what it shows.
+                        accessible-label: r.total == "" ? r.name + ", " + r.line : r.name + ", " + r.total + ", " + r.line;
                         HorizontalLayout {
                             padding: 10px;
                             spacing: 12px;

@@ -497,7 +497,11 @@ impl Engine {
     fn trip_event(&mut self, e: Event) {
         let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         match e {
-            Event::Step(s) => self.status.step = s,
+            Event::Step(s) => {
+                // A step is listing or checking, not copying; progress names the folder again.
+                self.status.step = s;
+                self.status.active_pair.clear();
+            }
             Event::Progress { pair, rel, done, total } => self.progress(pair, rel, done, total),
             Event::Carried { pair, rel, size } => {
                 self.log.line(&format!("carried {rel} ({pair}, {})", mb(size)));
@@ -560,9 +564,11 @@ impl Engine {
         if t.cur.0 != pair || t.cur.1 != rel || done < t.cur_done {
             let verb = if t.kind == Kind::Unload { "Delivering" } else { "Copying" };
             self.status.step = format!("{verb} {rel}");
-            self.status.active_pair.clone_from(&pair);
             t.cur = (pair, rel);
             t.cur_done = 0;
+        }
+        if self.status.active_pair != t.cur.0 {
+            self.status.active_pair.clone_from(&t.cur.0);
         }
         t.moved += done - t.cur_done;
         t.cur_done = done;

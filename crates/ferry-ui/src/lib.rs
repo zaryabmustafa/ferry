@@ -123,7 +123,9 @@ fn status_text(s: &Status, n: &Names) -> String {
     }
     match s.location {
         Location::Elsewhere if s.carried_bytes > 0 => format!("Carrying {} to {}", size(s.carried_bytes), n.dest),
-        Location::Source if s.carried_bytes > 0 => format!("Loaded. Take the laptop to {}", n.dest),
+        // "Loaded" only when (nearly) full: a fill that stopped early may well start again here.
+        Location::Source if s.carried_bytes > 0 && s.carried_bytes >= s.cap_bytes / 10 * 9 => format!("Loaded. Take the laptop to {}", n.dest),
+        Location::Source if s.carried_bytes > 0 => format!("{} on board for {}", size(s.carried_bytes), n.dest),
         Location::Destination if s.carried_bytes == 0 => destination_line(s, n).unwrap_or_else(|| status_line(s.phase, None, n)),
         _ => status_line(s.phase, None, n),
     }
@@ -148,12 +150,16 @@ fn left_to_bring(p: &PairStatus) -> u64 {
     p.source_bytes / 100 * u64::from(100 - p.destination_percent.min(100))
 }
 
-/// (percent, bytes at the destination, bytes at the source) over the pairs, weighted by size; None
-/// before any listing. Only asked while something is missing, so it never rounds up to 100.
+/// (percent, bytes at the destination, bytes at the source) over the pairs, weighted by size. None
+/// while a folder that isn't up to date has no listing yet (its size is unknown, so any percent
+/// would overstate), and when no data is missing (only deletes wait). Never rounds up to 100.
 fn caught_up(s: &Status) -> Option<(u8, u64, u64)> {
+    if s.pairs.iter().any(|p| !p.up_to_date && p.source_bytes == 0) {
+        return None;
+    }
     let total: u64 = s.pairs.iter().map(|p| p.source_bytes).sum();
     let have = total - s.pairs.iter().map(left_to_bring).sum::<u64>();
-    (total > 0).then(|| (((u128::from(have) * 100 / u128::from(total)) as u8).min(99), have, total))
+    (have < total).then(|| (((u128::from(have) * 100 / u128::from(total)) as u8).min(99), have, total))
 }
 
 /// The flyout's line under the status before problems take it over (`detail_text`). The amount on
@@ -170,9 +176,11 @@ fn usual_detail(s: &Status, n: &Names) -> String {
     match s.location {
         Location::Source | Location::Elsewhere if s.carried_bytes > 0 => format!("Unloading starts when the laptop is at {}", n.dest),
         Location::Destination if s.carried_bytes == 0 && s.pairs.iter().any(|p| !p.up_to_date && !p.needs_confirm) => {
-            match s.pairs.iter().map(left_to_bring).sum::<u64>() {
-                0 => format!("Laptop is empty; the next trip from {} brings the rest", n.src),
-                left => format!("Laptop is empty; the next trip from {} brings the last {}", n.src, size(left)),
+            match caught_up(s).map(|(_, have, total)| total - have) {
+                // Only deletes wait, or a size isn't known yet: nothing to promise about trips.
+                None => speed,
+                Some(left) if left <= s.cap_bytes => format!("Laptop is empty; the next trip from {} brings the last {}", n.src, size(left)),
+                Some(left) => format!("Laptop is empty; {} still to bring from {}", size(left), n.src),
             }
         }
         _ => speed,
@@ -294,19 +302,18 @@ fn flyout_line(s: &Status, p: &PairStatus, kind: i32, detail: &str, n: &Names) -
     if kind == ROW_ATTENTION || kind == ROW_DONE {
         return (detail.into(), false);
     }
-    if p.carried_bytes == 0 {
-        return match left_to_bring(p) {
-            0 => (format!("{}% at {}", p.destination_percent, n.dest), false),
-            left => (format!("{} still to bring", size(left)), false),
-        };
-    }
-    let now = s.active_pair == p.id && matches!(s.phase, Phase::Filling | Phase::Unloading);
+    let now = p.carried_bytes > 0 && s.active_pair == p.id && matches!(s.phase, Phase::Filling | Phase::Unloading);
     let held = size(p.carried_bytes);
     let mut line = match s.phase {
+        _ if p.carried_bytes == 0 => match left_to_bring(p) {
+            0 => format!("{}% at {}", p.destination_percent, n.dest),
+            left => format!("{} still to bring", size(left)),
+        },
         Phase::Filling if now => format!("Loading · {held} on board"),
         Phase::Unloading if now => format!("Unloading · {held} left"),
         _ => format!("{held} on board"),
     };
+    // Deletions stay visible (PRODUCT.md: never surprise with data loss).
     if p.removed_at_destination > 0 {
         line += &format!(" · {} removed at {}", p.removed_at_destination, n.dest);
     }
@@ -685,7 +692,7 @@ fn rows(s: &Status, paths: &dyn Fn(&str) -> String, n: &Names) -> Vec<Row> {
             let (detail, right, kind) = folder_row(p, n);
             let (line, now) = flyout_line(s, p, kind, &detail, n);
             let total = size(p.source_bytes);
-            let label = [p.id.as_str(), &total, &line, &right].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", ");
+            let label = [p.id.as_str(), &total, &detail, &right].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(", ");
             Row {
                 line: line.into(),
                 // Matches the folder's meter segment (`segments`).
@@ -944,9 +951,16 @@ mod tests {
     /// The screenshot that started trip-states.html: at the destination, laptop empty, one folder 90% there.
     #[test]
     fn delivered_says_how_far_the_destination_is() {
-        let s = status(Phase::Idle, 0, None, vec![sized("repositories", 0, 90, 700 * GB)]);
+        let s = Status { cap_bytes: 350 * GB, ..status(Phase::Idle, 0, None, vec![sized("repositories", 0, 90, 700 * GB)]) };
         assert_eq!(status_text(&s, &n()), "Lake house is 90% caught up");
         assert_eq!(usual_detail(&s, &n()), "Laptop is empty; the next trip from HQ brings the last 70 GB");
+        // More than one laptop's worth: no promise about the next trip.
+        assert_eq!(usual_detail(&Status { cap_bytes: 50 * GB, ..s.clone() }, &n()), "Laptop is empty; 70 GB still to bring from HQ");
+        // A folder without a listing yet, or only deletes waiting: no percent to stand behind.
+        let unlisted = status(Phase::Idle, 0, None, vec![sized("a", 0, 100, GB), pair(0, 0, 0, false, false)]);
+        assert_eq!((status_text(&unlisted, &n()).as_str(), meter(&unlisted, &n()).is_none()), ("Lake house isn't fully up to date yet", true));
+        let deletes = status(Phase::Idle, 0, None, vec![sized("a", 0, 100, GB), sized("b", 0, 100, GB)].into_iter().map(|p| PairStatus { up_to_date: p.id == "a", ..p }).collect());
+        assert_eq!((status_text(&deletes, &n()).as_str(), usual_detail(&deletes, &n()).as_str()), ("Lake house isn't fully up to date yet", ""));
         let (label, amount, segs, value) = meter(&s, &n()).unwrap();
         assert_eq!((label.as_str(), amount.as_str(), segs[0].tone, value), ("At Lake house", "630 of 700 GB", TONE_LANDED, 90.0));
         let r = &rows(&s, &|_| String::new(), &n())[0];
@@ -972,7 +986,9 @@ mod tests {
 
         // Done loading, still at the source; then on the way.
         let loaded = Status { phase: Phase::Idle, active_pair: String::new(), ..s.clone() };
-        assert_eq!(status_text(&loaded, &n()), "Loaded. Take the laptop to Lake house");
+        // 252 of 350 GB: a fill that stopped early, which may start again here.
+        assert_eq!(status_text(&loaded, &n()), "252 GB on board for Lake house");
+        assert_eq!(status_text(&Status { carried_bytes: 340 * GB, ..loaded.clone() }, &n()), "Loaded. Take the laptop to Lake house");
         assert_eq!(usual_detail(&loaded, &n()), "Unloading starts when the laptop is at Lake house");
         let away = Status { location: Location::Elsewhere, phase: Phase::Waiting, ..loaded.clone() };
         assert_eq!(status_text(&away, &n()), "Carrying 252 GB to Lake house");
@@ -990,6 +1006,9 @@ mod tests {
         assert_eq!(freed.tone, TONE_FREED);
         assert!((freed.start - 64.0 / 350.0).abs() < 1e-6 && (freed.width - 188.0 / 350.0).abs() < 1e-6);
         assert_eq!(rows(&u, &|_| String::new(), &n())[1].line.as_str(), "Unloading · 64 GB left");
+        // Deletions show on an emptied folder too.
+        u.pairs[0].removed_at_destination = 3;
+        assert_eq!(rows(&u, &|_| String::new(), &n())[0].line.as_str(), "210 GB still to bring · 3 removed at Lake house");
     }
 
     #[test]

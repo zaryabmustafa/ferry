@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferry Trip States</title>
+<link rel="icon" href="../assets/brand/ferry.ico">
+<style>
+/* Tokens mirror DESIGN.md and crates/ferry-ui/ui/theme.slint. Accent here is the amber fallback. */
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --page: #e4e6e9;
+  --mica: #eef0f3; --layer: #fbfcfc; --layer-2: #f6f7f8; --subtle: #e6e8ea; --stroke: #d7d9dc;
+  --ink: #16191c; --muted: #4e5358; --ok: #21763c; --warn: #ba3728;
+  --accent: #c46d00; --accent-ink: #0f171f; --mark-cargo: #c46d00;
+  --accent-soft: color-mix(in oklab, var(--accent) 18%, var(--mica));
+  --seg-2: color-mix(in oklab, var(--accent) 60%, var(--mica));
+  --seg-3: color-mix(in oklab, var(--accent) 30%, var(--mica));
+  /* New: what is already at the destination. Neutral, because amber means "on the laptop". */
+  --landed: color-mix(in oklab, var(--ink) 58%, var(--mica));
+  --freed: color-mix(in oklab, var(--ink) 22%, var(--subtle));
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.04), 0 16px 40px oklch(0 0 0 / 0.14);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #101214;
+    --mica: #15171a; --layer: #212326; --layer-2: #1c1e21; --subtle: #292c2e; --stroke: #2f3235;
+    --ink: #eef0f3; --muted: #a6abb1; --ok: #6fd087; --warn: #fd8c7b;
+    --accent: #f5ae39; --accent-ink: #1f1306; --mark-cargo: #e69825;
+    --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #101214;
+  --mica: #15171a; --layer: #212326; --layer-2: #1c1e21; --subtle: #292c2e; --stroke: #2f3235;
+  --ink: #eef0f3; --muted: #a6abb1; --ok: #6fd087; --warn: #fd8c7b;
+  --accent: #f5ae39; --accent-ink: #1f1306; --mark-cargo: #e69825;
+  --shadow: 0 2px 4px oklch(0 0 0 / 0.3), 0 20px 48px oklch(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--page); }
+body { margin: 0; color: var(--ink); font: 14px/20px var(--font); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent-soft); color: var(--ink); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+code { font: 12px/16px "Cascadia Mono", Consolas, monospace; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; line-height: 16px; }
+
+.page { max-width: 1240px; margin: 0 auto; padding: 40px 16px 80px; }
+.page-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; margin-bottom: 40px; }
+.page-head h1 { font: 600 28px/36px var(--font-display); margin: 0 0 4px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 12px; }
+.page-head p { margin: 0; color: var(--muted); max-width: 70ch; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--subtle); color: var(--ink); font-weight: 600; }
+
+section { margin-bottom: 64px; }
+section > h2 { font: 600 20px/28px var(--font-display); margin: 0 0 4px; }
+section > p { margin: 0 0 24px; color: var(--muted); max-width: 72ch; }
+
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 40px 28px; align-items: start; }
+.state h3 { font: 600 14px/20px var(--font); margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
+.state h3 .when { font-weight: 400; color: var(--muted); font-size: 12px; }
+.notes { margin: 14px 0 0; padding: 0 0 0 18px; color: var(--muted); font-size: 12px; line-height: 18px; max-width: 380px; }
+.notes li + li { margin-top: 4px; }
+.notes b { color: var(--ink); font-weight: 600; }
+.state.before .flyout { opacity: 0.92; }
+
+/* ---------- flyout, as crates/ferry-ui/ui/flyout.slint ---------- */
+.flyout { width: 380px; max-width: 100%; background: var(--mica); border: 1px solid var(--stroke); border-radius: 8px; box-shadow: var(--shadow); overflow: hidden; }
+.fly-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 6px; }
+.fly-head .word { display: flex; align-items: center; gap: 7px; font: 600 16px/20px var(--font-display); letter-spacing: -0.02em; }
+.grow { flex: 1; min-width: 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--accent-soft); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill.plain { background: var(--subtle); }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--stroke); background: var(--layer); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--layer-2); }
+.btn.ghost { background: transparent; border-color: transparent; width: 32px; padding: 0; justify-content: center; }
+.btn.ghost:hover { background: var(--subtle); }
+.ico { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.fly-status { padding: 10px 16px 16px; }
+.big { font: 600 20px/28px var(--font-display); margin-bottom: 2px; text-wrap: balance; }
+.step { font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+
+/* A meter is always a labelled pair: what it measures, then the number. */
+.meter { margin-top: 14px; }
+.meter-label { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; line-height: 16px; margin-bottom: 6px; }
+.meter-label span:first-child { font-weight: 600; }
+.track { position: relative; height: 8px; border-radius: 4px; background: var(--subtle); overflow: hidden; display: flex; }
+.track > i { display: block; height: 100%; box-shadow: inset -1px 0 0 var(--layer); }
+.track > i:last-child { box-shadow: none; }
+.t0 { background: var(--accent); }
+.t1 { background: var(--seg-2); }
+.t2 { background: var(--seg-3); }
+.landed { background: var(--landed); }
+.freed { background: repeating-linear-gradient(135deg, var(--freed) 0 2px, transparent 2px 5px); }
+.cap-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; border-radius: 1px; background: var(--ink); }
+
+.fly-list { background: var(--layer-2); border-top: 1px solid var(--stroke); border-bottom: 1px solid var(--stroke); padding: 6px; }
+.fly-row { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 4px; }
+.fly-row:hover { background: var(--subtle); }
+.fly-row .name { display: flex; gap: 8px; align-items: baseline; }
+.fly-row .name span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fly-row .detail { font-size: 12px; line-height: 16px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.fly-row .detail.now { color: var(--ink); }
+.sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.rbar { height: 4px; border-radius: 2px; background: var(--subtle); overflow: hidden; margin-top: 6px; display: flex; }
+.rbar > i { display: block; height: 100%; }
+.right { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.fly-foot { display: flex; gap: 8px; padding: 12px 16px; align-items: center; }
+
+/* ---------- legend ---------- */
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.leg { background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; padding: 16px; }
+.leg .track { margin-bottom: 12px; }
+.leg b { display: block; font-weight: 600; margin-bottom: 2px; }
+.leg p { margin: 0; color: var(--muted); font-size: 12px; line-height: 18px; }
+.needs { margin: 0; padding: 0; list-style: none; background: var(--layer); border: 1px solid var(--stroke); border-radius: 8px; }
+.needs li { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 16px; padding: 12px 16px; }
+.needs li + li { border-top: 1px solid var(--stroke); }
+.needs span { color: var(--muted); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .seg button, .fly-row { transition: background-color 150ms cubic-bezier(0.25, 1, 0.5, 1); }
+}
+@media (max-width: 600px) {
+  .states { grid-template-columns: 1fr; }
+  .needs li { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="hull" viewBox="1 2 14 11.5">
+      <path d="M4 6h8v3H4z M1 10h14l-2 3.5H3z" fill="currentColor"/>
+      <path d="M4 2h5v3H4z" fill="var(--mark-cargo)"/>
+    </symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+    <symbol id="i-office" viewBox="0 0 24 24"><path d="M5 20V5.5A1.5 1.5 0 0 1 6.5 4h7A1.5 1.5 0 0 1 15 5.5V20M15 10h3.5a1.5 1.5 0 0 1 1.5 1.5V20M3 20h18M8.5 8h3M8.5 12h3M8.5 16h3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-road" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5Z"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <header class="page-head">
+    <div>
+      <h1><svg width="34" height="28" style="color:var(--ink)"><use href="#hull"/></svg>Loading and unloading</h1>
+      <p>Every state of one trip in the tray panel: Studio is the source, Hive the destination, the laptop holds 350 GB. Two numbers never share a look again: amber is what's on the laptop, gray is what's already at Hive.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" data-t="" aria-pressed="true">System</button>
+      <button type="button" data-t="light" aria-pressed="false">Light</button>
+      <button type="button" data-t="dark" aria-pressed="false">Dark</button>
+    </div>
+  </header>
+
+  <section>
+    <h2>The panel you saw</h2>
+    <p>Same data, before and after. Laptop empty, at Hive, one folder 90% there.</p>
+    <div class="states" id="compare"></div>
+  </section>
+
+  <section>
+    <h2>One full trip</h2>
+    <p>In the order they happen. Nothing animates on its own; numbers update on each status poll.</p>
+    <div class="states" id="trip"></div>
+  </section>
+
+  <section>
+    <h2>How to read the bars</h2>
+    <p>Each bar has a label above it saying what it measures, so an empty bar can't be mistaken for no progress.</p>
+    <div class="legend">
+      <div class="leg">
+        <div class="track"><i class="t0" style="width:54%"></i><i class="t1" style="width:18%"></i></div>
+        <b>On the laptop</b>
+        <p>Amber, one segment per folder, out of the laptop's 350 GB. The square next to each folder matches its segment.</p>
+      </div>
+      <div class="leg">
+        <div class="track"><i class="t1" style="width:18%"></i><i class="freed" style="width:82%"></i></div>
+        <b>Unloaded this trip</b>
+        <p>Hatched while unloading: space already freed on the laptop. Amber shrinks as Hive takes the files.</p>
+      </div>
+      <div class="leg">
+        <div class="track"><i class="landed" style="width:90%"></i></div>
+        <b>At Hive</b>
+        <p>Gray, out of the folder's full size at Studio. Shown when the laptop is empty and Hive isn't caught up.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the engine has to send</h2>
+    <p>Most of this comes from what <code>Status</code> already sends. Two things need a small addition.</p>
+    <ul class="needs">
+      <li><b>Unloaded this trip</b><span>New <code>Status::trip_bytes</code>: how much was on board when unloading started, so the panel can say "286 of 350 GB unloaded".</span></li>
+      <li><b>Which folder is active</b><span>New <code>PairStatus::active</code>, so the row being copied says "Loading" or "Unloading" instead of the panel guessing from <code>step</code>.</span></li>
+      <li><b>Loaded, On the way</b><span>No engine change: the UI already knows where the laptop is and how much it carries. Today these show "Idle" and "Waiting: not on a known network".</span></li>
+      <li><b>Hive is 90% caught up</b><span>No engine change: each folder's share at Hive (<code>destination_percent</code>) weighted by its size at Studio (<code>source_bytes</code>).</span></li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const SRC = "Studio", DEST = "Hive";
+const at = { src: ["i-office", `At ${SRC}`], dest: ["i-home", `At ${DEST}`], away: ["i-road", "Elsewhere"] };
+
+// track: [[class, percent], ...]; label: [left, right]
+const meter = m => !m ? "" : `
+  <div class="meter" role="meter" aria-label="${m.label[0]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${m.value ?? 0}">
+    <div class="meter-label"><span>${m.label[0]}</span><span class="num muted">${m.label[1]}</span></div>
+    <div class="track">${m.track.map(([c, w]) => `<i class="${c}" style="width:${w}%"></i>`).join("")}</div>
+  </div>`;
+
+// row: { name, total, detail, now, sw, bar, barClass, right, done }
+const row = r => `
+  <div class="fly-row">
+    <svg class="ico"><use href="#i-folder"/></svg>
+    <div class="grow">
+      <div class="name"><span>${r.name}</span><span class="small muted num">${r.total}</span></div>
+      ${r.bar != null ? `<div class="rbar"><i class="${r.barClass ?? "landed"}" style="width:${r.bar}%"></i></div>` : ""}
+      ${r.detail ? `<div class="detail${r.now ? " now" : ""}">${r.sw ? `<i class="sw ${r.sw}"></i>` : ""}<span class="num">${r.detail}</span></div>` : ""}
+    </div>
+    ${r.done ? `<svg class="ico" style="color:var(--ok)" aria-label="Up to date"><use href="#i-check"/></svg>` : ""}
+    ${r.right ? `<span class="right num">${r.right}</span>` : ""}
+  </div>`;
+
+const flyout = s => `
+  <div class="flyout" role="group" aria-label="Ferry: ${s.status}">
+    <div class="fly-head">
+      <span class="word"><svg width="20" height="16" style="color:var(--ink)"><use href="#hull"/></svg>Ferry</span>
+      <span class="grow"></span>
+      <span class="pill${s.where === "away" ? " plain" : ""}"><svg class="ico" style="width:14px;height:14px"><use href="#${at[s.where][0]}"/></svg>${at[s.where][1]}</span>
+      <button class="btn ghost" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></button>
+    </div>
+    <div class="fly-status">
+      <div class="big">${s.status}</div>
+      ${s.detail ? `<div class="muted num">${s.detail}</div>` : ""}
+      ${s.step ? `<div class="step">${s.step}</div>` : ""}
+      ${meter(s.meter)}
+    </div>
+    <div class="fly-list">${s.rows.map(row).join("")}</div>
+    <div class="fly-foot">
+      <span class="small muted grow">${s.foot ?? ""}</span>
+      <button class="btn"><svg class="ico"><use href="#i-pause"/></svg>Pause</button>
+    </div>
+  </div>`;
+
+const card = (title, when, s, notes, cls = "") => `
+  <article class="state ${cls}">
+    <h3>${title}<span class="when">${when}</span></h3>
+    ${flyout(s)}
+    ${notes ? `<ul class="notes">${notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}
+  </article>`;
+
+const sizes = { repo: "704.7 GB", vm: "412.3 GB", photos: "96.8 GB" };
+
+document.getElementById("compare").innerHTML =
+  card("Now", "what Ferry shows today", {
+    where: "dest", status: `Delivered. ${DEST} isn't fully up to date yet`, detail: "0 of 350 GB",
+    meter: { label: ["", ""], track: [] },
+    rows: [{ name: "repositories", total: sizes.repo, bar: 90, barClass: "t0", right: `90% at ${DEST}` }],
+  }, [
+    "<b>Two messages in one line</b>, and the second has no number in it.",
+    "<b>“0 of 350 GB” over an empty bar</b> reads as no progress. It's really the laptop being empty, which is good news.",
+    `<b>The folder bar is amber</b>, but it shows ${DEST}'s copy. Amber means data on the laptop.`,
+  ], "before") +
+  card("Proposed", "same data", {
+    where: "dest", status: `${DEST} is 90% caught up`,
+    detail: `Delivered, laptop is empty. The next trip from ${SRC} brings the last 70 GB.`,
+    meter: { label: [`At ${DEST}`, "634.7 of 704.7 GB"], track: [["landed", 90]], value: 90 },
+    rows: [{ name: "repositories", total: sizes.repo, bar: 90, detail: "70 GB still to bring" }],
+    foot: `${DEST} is about 1 trip behind`,
+  }, [
+    "<b>One headline with the answer in it.</b> The detail says what happened and what's next.",
+    `<b>The bar is labelled ${DEST}</b> and turns gray. The empty laptop bar is gone; the sentence says it.`,
+    "<b>The row says what's left</b> (70 GB) instead of repeating the percent.",
+  ]);
+
+document.getElementById("trip").innerHTML =
+  card("Loading", `at ${SRC}`, {
+    where: "src", status: `Loading at ${SRC}`, detail: "108 MB/s · about 15 min left",
+    step: "Copying vm-backups\\win11-dev.vhdx",
+    meter: { label: ["On the laptop", "252 of 350 GB"], track: [["t0", 54.3], ["t1", 17.7]], value: 72 },
+    rows: [
+      { name: "repositories", total: sizes.repo, sw: "t0", detail: "190 GB on board" },
+      { name: "vm-backups", total: sizes.vm, sw: "t1", detail: "Loading · 62 GB on board", now: true },
+      { name: "photos", total: sizes.photos, detail: "Up to date", done: true },
+    ],
+    foot: `${DEST} is about 3 trips behind`,
+  }, [
+    "Today's “Filling the laptop” becomes <b>Loading at Studio</b>: the place, and a direction that pairs with Unloading.",
+    "Each row's square matches its meter segment.",
+  ]) +
+  card("Loaded", `at ${SRC}, laptop full`, {
+    where: "src", status: `Loaded. Take the laptop to ${DEST}`, detail: `350 GB on board, ready to unload at ${DEST}.`,
+    meter: { label: ["On the laptop", "350 of 350 GB"], track: [["t0", 54.3], ["t1", 45.7]], value: 100 },
+    rows: [
+      { name: "repositories", total: sizes.repo, sw: "t0", detail: "190 GB on board" },
+      { name: "vm-backups", total: sizes.vm, sw: "t1", detail: "160 GB on board · 99 GB waits for the next trip" },
+      { name: "photos", total: sizes.photos, detail: "Up to date", done: true },
+    ],
+    foot: `${DEST} is about 2 trips behind`,
+  }, ["Today this says <b>Idle</b>. A full laptop is the moment to leave, so the headline says so."]) +
+  card("On the way", "between networks", {
+    where: "away", status: `Carrying 350 GB to ${DEST}`, detail: `Unloading starts when the laptop joins ${DEST}'s network.`,
+    meter: { label: ["On the laptop", "350 of 350 GB"], track: [["t0", 54.3], ["t1", 45.7]], value: 100 },
+    rows: [
+      { name: "repositories", total: sizes.repo, sw: "t0", detail: "190 GB on board" },
+      { name: "vm-backups", total: sizes.vm, sw: "t1", detail: "160 GB on board" },
+      { name: "photos", total: sizes.photos, detail: "Up to date", done: true },
+    ],
+    foot: `${DEST} is about 2 trips behind`,
+  }, ["Today this says <b>Waiting: not on a known network</b>. With cargo on board, say what's carried and where it goes."]) +
+  card("Unloading", `at ${DEST}`, {
+    where: "dest", status: `Unloading at ${DEST}`, detail: "286 of 350 GB unloaded · 96 MB/s · about 12 min left",
+    step: `Copying vm-backups\\win11-dev.vhdx to ${DEST}`,
+    meter: { label: ["Left on the laptop", "64 GB"], track: [["t1", 18.3], ["freed", 81.7]], value: 18 },
+    rows: [
+      { name: "repositories", total: sizes.repo, detail: "Unloaded, checking copies" },
+      { name: "vm-backups", total: sizes.vm, sw: "t1", detail: "Unloading · 64 GB left", now: true },
+      { name: "photos", total: sizes.photos, detail: "Up to date", done: true },
+    ],
+    foot: `${DEST} is about 1 trip behind`,
+  }, [
+    "The same meter drains instead of filling, so it's clear the laptop is emptying.",
+    "Hatching marks space already freed. Needs <code>trip_bytes</code> for “286 of 350”.",
+  ]) +
+  card("Delivered", `at ${DEST}, more to bring`, {
+    where: "dest", status: `${DEST} is 90% caught up`,
+    detail: `Delivered, laptop is empty. The next trip from ${SRC} brings the last 120 GB.`,
+    meter: { label: [`At ${DEST}`, "1,094 of 1,214 GB"], track: [["landed", 90]], value: 90 },
+    rows: [
+      { name: "repositories", total: sizes.repo, bar: 97, detail: "21 GB still to bring" },
+      { name: "vm-backups", total: sizes.vm, bar: 76, detail: "99 GB still to bring" },
+      { name: "photos", total: sizes.photos, detail: "Up to date", done: true },
+    ],
+    foot: `${DEST} is about 1 trip behind`,
+  }, ["The case from your screenshot, with more folders. Gray bars only appear once nothing is on board."]) +
+  card("Up to date", `at ${DEST}`, {
+    where: "dest", status: `${DEST} is up to date`, detail: "Laptop is empty. Nothing to carry.",
+    rows: [
+      { name: "repositories", total: sizes.repo, detail: "Up to date", done: true },
+      { name: "vm-backups", total: sizes.vm, detail: "Up to date", done: true },
+      { name: "photos", total: sizes.photos, detail: "Up to date", done: true },
+    ],
+    foot: `${DEST} is caught up`,
+  }, ["Unchanged from today, apart from the detail line. No bar when there's nothing to measure."]);
+
+// Theme switch
+const btns = document.querySelectorAll(".seg button");
+btns.forEach(b => b.addEventListener("click", () => {
+  btns.forEach(x => x.setAttribute("aria-pressed", x === b));
+  if (b.dataset.t) document.documentElement.dataset.theme = b.dataset.t;
+  else delete document.documentElement.dataset.theme;
+}));
+</script>
+</body>
+</html>

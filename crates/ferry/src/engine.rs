@@ -489,6 +489,7 @@ impl Engine {
         }
         self.log.line(if kind == Kind::Fill { "fill started" } else { "unload started" });
         self.status.attention.clear();
+        self.status.trip_bytes = if kind == Kind::Unload { self.status.carried_bytes } else { 0 };
         self.counts.clear();
         self.trip = Some(Trip { kind, cancel, first_progress: None, moved: 0, cur: Default::default(), cur_done: 0 });
     }
@@ -559,6 +560,7 @@ impl Engine {
         if t.cur.0 != pair || t.cur.1 != rel || done < t.cur_done {
             let verb = if t.kind == Kind::Unload { "Delivering" } else { "Copying" };
             self.status.step = format!("{verb} {rel}");
+            self.status.active_pair.clone_from(&pair);
             t.cur = (pair, rel);
             t.cur_done = 0;
         }
@@ -584,6 +586,8 @@ impl Engine {
         self.status.rate_bps = 0;
         self.status.eta_secs = None;
         self.status.step.clear();
+        self.status.trip_bytes = 0;
+        self.status.active_pair.clear();
         if !matches!(r.report, Report::WrongPlace { .. }) {
             self.status.remote_ok = r.remote_ok;
         }
@@ -1134,9 +1138,9 @@ impl Engine {
             _ if paused => Icon::Paused,
             _ => Icon::Idle,
         };
-        let dest = display_name(&self.cfg, Side::Destination);
+        let (src, dest) = (display_name(&self.cfg, Side::Source), display_name(&self.cfg, Side::Destination));
         let what = match s.phase {
-            Phase::Filling => "filling the laptop".into(),
+            Phase::Filling => format!("loading at {src}"),
             Phase::Unloading => format!("unloading at {dest}"),
             Phase::UpToDate => format!("{dest} is up to date"),
             Phase::Waiting => "waiting for a known network".into(),

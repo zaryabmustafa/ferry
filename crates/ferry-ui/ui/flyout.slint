@@ -3,9 +3,18 @@ export { Theme, Focus }
 
 // kind: 0 text detail, 1 progress bar, 2 up to date, 3 needs attention
 // total: the folder's size at the source, "" until its first complete listing
-export struct Row { name: string, total: string, detail: string, right: string, percent: float, kind: int, label: string, paths: string }
-// start and width are fractions of the cap
+// line: the flyout's text under the name; tone: its meter segment's tone, -1 for none; now: the trip is copying it
+export struct Row { name: string, total: string, detail: string, right: string, percent: float, kind: int, label: string, paths: string, line: string, tone: int, now: bool }
+// start and width are fractions of the bar. tone: 0-2 a folder on the laptop, 3 freed by this unload, 4 at the destination
 export struct Seg { start: float, width: float, tone: int }
+
+export component Swatch inherits Rectangle {
+    in property <int> tone;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: tone == 0 ? Theme.accent : tone == 1 ? Theme.seg-2 : tone == 2 ? Theme.seg-3 : tone == 3 ? Theme.freed : Theme.landed;
+}
 
 export component Icon inherits Text {
     font-family: Theme.icons;
@@ -141,7 +150,10 @@ export component Flyout inherits Window {
     in property <string> trust-note;
     in property <[Seg]> segments;
     in property <bool> show-meter;
-    // Share of the cap carried, 0 to 100, for screen readers.
+    // What the bar measures ("On the laptop") and its amount ("252 of 350 GB").
+    in property <string> meter-label;
+    in property <string> meter-amount;
+    // How full the bar is, 0 to 100, for screen readers.
     in property <float> meter-value;
     in property <[string]> attention;
     in property <[Row]> rows;
@@ -217,7 +229,13 @@ export component Flyout inherits Window {
                 if root.trust-note != "": Text { text: root.trust-note; font-size: 12px; color: Theme.muted; wrap: word-wrap; }
                 for a in root.attention: Text { text: a; color: Theme.warn; wrap: word-wrap; }
                 if root.show-meter: VerticalLayout {
-                    padding-top: 10px;
+                    padding-top: 12px;
+                    spacing: 6px;
+                    HorizontalLayout {
+                        spacing: 12px;
+                        Text { text: root.meter-label; font-size: 12px; font-weight: 600; color: Theme.ink; horizontal-stretch: 1; overflow: elide; }
+                        Text { text: root.meter-amount; font-size: 12px; color: Theme.muted; }
+                    }
                     Rectangle {
                         height: 8px;
                         border-radius: 4px;
@@ -226,7 +244,7 @@ export component Flyout inherits Window {
                         border-color: Theme.stroke;
                         clip: true;
                         accessible-role: progress-indicator;
-                        accessible-label: "Laptop space used";
+                        accessible-label: root.meter-label + ", " + root.meter-amount;
                         accessible-value: round(root.meter-value);
                         accessible-value-minimum: 0;
                         accessible-value-maximum: 100;
@@ -234,7 +252,7 @@ export component Flyout inherits Window {
                             x: parent.width * s.start;
                             width: parent.width * s.width;
                             height: parent.height;
-                            background: s.tone == 0 ? Theme.accent : s.tone == 1 ? Theme.seg-2 : Theme.seg-3;
+                            background: s.tone == 0 ? Theme.accent : s.tone == 1 ? Theme.seg-2 : s.tone == 2 ? Theme.seg-3 : s.tone == 3 ? Theme.freed : Theme.landed;
                             // 1 px gap in the layer color, so folders are told apart by more than tint.
                             Rectangle { x: parent.width - 1px; width: 1px; background: Theme.layer; }
                         }
@@ -274,7 +292,8 @@ export component Flyout inherits Window {
                                     }
                                     Rectangle { horizontal-stretch: 1; }
                                 }
-                                if r.kind == 1: VerticalLayout {
+                                // A folder with cargo says how much instead: the bar is the destination's copy.
+                                if r.kind == 1 && r.tone < 0: VerticalLayout {
                                     padding-top: 6px;
                                     Rectangle {
                                         height: 4px;
@@ -283,18 +302,24 @@ export component Flyout inherits Window {
                                         border-width: Theme.hc ? 1px : 0;
                                         border-color: Theme.stroke;
                                         clip: true;
-                                        Rectangle { x: 0; width: parent.width * r.percent; height: parent.height; border-radius: 2px; background: Theme.accent; }
+                                        // Gray: this is the destination's copy; amber is only for the laptop.
+                                        Rectangle { x: 0; width: parent.width * r.percent; height: parent.height; border-radius: 2px; background: Theme.landed; }
                                     }
                                 }
-                                if r.kind != 1: Text {
-                                    text: r.detail;
-                                    font-size: 12px;
-                                    color: r.kind == 3 ? Theme.warn : Theme.muted;
-                                    overflow: elide;
+                                if r.line != "": HorizontalLayout {
+                                    padding-top: r.kind == 1 && r.tone < 0 ? 4px : 0;
+                                    spacing: 6px;
+                                    if r.tone >= 0: VerticalLayout { alignment: center; Swatch { tone: r.tone; } }
+                                    Text {
+                                        text: r.line;
+                                        font-size: 12px;
+                                        color: r.kind == 3 ? Theme.warn : r.now ? Theme.ink : Theme.muted;
+                                        overflow: elide;
+                                    }
                                 }
                             }
                             if r.kind == 2: Icon { text: "\u{E73E}"; color: Theme.ok; }
-                            if r.kind != 2 && r.right != "": Text {
+                            if r.kind == 3 && r.right != "": Text {
                                 text: r.right;
                                 font-size: 12px;
                                 color: Theme.muted;

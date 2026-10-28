@@ -47,6 +47,8 @@ Defined in OKLCH; sRGB values in `crates/ferry-ui/ui/theme.slint`. Neutrals carr
 | `warn` | `#ba3728` | `#fd8c7b` | Needs attention (red on purpose) |
 | `accent` | Windows accent | Windows accent | Primary button, meter, progress |
 | `accent-ink` | by luminance | by luminance | Text on `accent` |
+| `landed` | `ink` 58% on `mica` | `ink` 58% on `mica` | Already at the destination (folder bars, "At {destination}" meter) |
+| `freed` | `ink` 8% on `subtle` | `ink` 8% on `subtle` | Space an unload has freed on the laptop |
 
 **Accent.** The UI uses the Windows accent (the Light 2 shade in dark mode), so Ferry looks like it shipped with Windows.
 The fallback, and the mockup placeholder, is brand amber: `#c46d00` light, `#f5ae39` dark, both with dark text.
@@ -90,8 +92,8 @@ Only the brand mark is custom; the flyout header draws it as a `Path` (`BrandMar
 - **Text box.** `layer` fill, 1 px `stroke`; focus is a 2 px `accent` line along the bottom (Windows 11), not a ring.
 - **Icons stand alone.** No tinted tiles behind glyphs; a list inside a card is divided by 1 px `stroke` lines, never boxes inside the card.
 - **Location pill.** `accent-soft` fill, 14 px icon + place: "At {source name}" `E731`, "At {destination name}" `E80F`, "Elsewhere" `E707`. Names are the user's own; long ones elide.
-- **Cap meter.** 6 px track on `subtle`; segments `accent` (on board), `seg-2` (to push), `seg-3` (planned). Always paired with a text value.
-- **Folder row.** Folder icon, name (body strong), detail (caption, muted); right side is a progress bar, "Up to date" with an `ok` check, or the problem in `warn`.
+- **Cap meter.** 6 px track on `subtle` under a caption row: what it measures (semibold) and the amount (muted). "On the laptop" while anything is on board, one `accent`/`seg-2`/`seg-3` segment per folder; "Left on the laptop" while unloading, followed by `freed`; "At {destination}" in `landed` once the laptop is empty and the destination isn't caught up. No meter when there's nothing to measure. Mockup: `mockups/trip-states.html`.
+- **Folder row.** Folder icon, name, size (caption, muted); under it the cargo ("190 GB on board", with an 8 px square in its meter segment's tone), or a `landed` bar and what is still to bring; "Up to date" with an `ok` check, or the problem in `warn`. The folder being copied now says "Loading" or "Unloading" in `ink`.
 - **Toast.** Only for errors. Title says what broke, body says what Ferry will do, two buttons: "Open Ferry", "Dismiss".
 
 ## Motion

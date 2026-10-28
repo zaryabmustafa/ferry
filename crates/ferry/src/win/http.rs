@@ -50,7 +50,7 @@ struct H(*mut c_void);
 impl H {
     fn new(h: *mut c_void) -> Result<Self, HttpError> {
         if h.is_null() {
-            Err(windows::core::Error::from_win32().into())
+            Err(windows::core::Error::from_thread().into())
         } else {
             Ok(H(h))
         }

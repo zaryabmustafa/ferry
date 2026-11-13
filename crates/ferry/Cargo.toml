@@ -9,7 +9,7 @@ ferry-core = { path = "../ferry-core" }
 ferry-ui = { path = "../ferry-ui" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 serde_json = "1"
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",
     "Win32_System_IO",
